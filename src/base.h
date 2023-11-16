@@ -193,8 +193,8 @@ class Control : public Wheels , public IMU_t{
     float imu_error , imu_error_sum,imu_error_diff,imu_prev_error,imu_control=0.0f;
     unsigned long imu_current_time,time,imu_last_time,imu_dt_time;
 
-    float kp_imu = 5.0;
-    float ki_imu = 0.000; // 35.5
+    float kp_imu = 16.0;
+    float ki_imu = 0.001; // 35.5
     float kd_imu = 0.0;
 
     public:
@@ -212,7 +212,7 @@ class Control : public Wheels , public IMU_t{
             }
             imu_error_sum += imu_error;
             if(fabs(imu_error) < 1.0f) imu_error_sum = 0;
-            imu_error_sum = constrain(imu_error_sum,-2000,2000);
+            imu_error_sum = constrain(imu_error_sum,-60000,60000);
             imu_error_diff = imu_error - imu_prev_error;
             // imu_control = kp * imu_error + ki * imu_error_sum * imu_dt_time + kd * imu_error_diff / imu_dt_time;
             imu_control = kp_imu*imu_error + ki_imu * imu_error_sum  + kd_imu * imu_error_diff;

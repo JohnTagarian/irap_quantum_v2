@@ -13,7 +13,7 @@ void setup() {
 }
 
 void loop() {
-  control.control_heading(0,0,0);
+  control.control_heading(0,90,100);
   // control.move(0,0,800);
   
   // Serial.printf("Yaw : %f\n",IMU.yaw);
