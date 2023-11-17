@@ -8,12 +8,14 @@
 #include <utility/imumaths.h>
 
 
-#define BNO055_SAMPLERATE_DELAY_MS (99)
+#define BNO055_SAMPLERATE_DELAY_MS (69)
 
 // Check I2C device address and correct line below (by default address is 0x29 or 0x28)
 //                                   id, address
 Adafruit_BNO055 bno = Adafruit_BNO055(55, 0x29, &Wire);
 unsigned long sample_time_imu;
+
+IntervalTimer ramping_timer;
 
 
 float vr = 100;
@@ -137,11 +139,14 @@ class IMU_t {
 
 };
 
+
 class Wheels{
     float rpm[3];
     float* wheel_speed; 
-    public:
+    float ramp;
 
+
+    public:
         void cmd_motor(int speed1 , int speed2, int speed3){
             Target_1 = speed1;
             Target_2 = speed2;
@@ -184,6 +189,21 @@ class Wheels{
 
             // Serial.printf("speed = %f %f %f\n",*(rpm)* 1,*(rpm+1)* 1,*(rpm+2)* 1);
         }
+        void move_ramp(int speed ,int alpha ,int W){
+          ramp += 0.0004;
+          if(ramp > speed){
+            ramp = speed;
+          }
+          wheel_speed = cal_wheels_rpm(ramp,alpha,W);
+          cmd_motor(*(wheel_speed),*(wheel_speed+1)  ,*(wheel_speed+2));
+
+          Serial.printf("Ramping : %f\n",ramp);
+
+        }
+
+        void reset_ramp(void){
+            ramp = 0.0f;
+        }
 
         
 };
@@ -214,7 +234,7 @@ class Control : public Wheels , public IMU_t{
         float px,py;
         float error_heading;
 
-        float control_heading(int target_angle ,int alp , float vr){
+        float control_heading(int target_angle ,int alp , float vr , bool ramp = false){
             imu_current_time = micros();
             call_bno();      
             imu_error = target_angle - yaw;
@@ -234,7 +254,12 @@ class Control : public Wheels , public IMU_t{
             imu_control = kp_imu*imu_error + ki_imu * imu_error_sum  + kd_imu * imu_error_diff;
 
             imu_control = constrain(imu_control, -500, 500);
+            if(ramp){
+              move_ramp(vr,alp,imu_control*-1);
+            }
+            else{
             move(vr,alp,imu_control*-1);
+            }
             // Serial.printf("yaw = %f error= %f \t control= %f  sum_error= %f termI= %f\n",yaw,imu_error,imu_control,imu_error_sum,ki_imu*imu_error_sum);
 
             imu_prev_error = imu_error;
@@ -315,15 +340,14 @@ class Control : public Wheels , public IMU_t{
 class Navigation : public Control{
   
   public:
-    void via_navigate(float yg , float xg ,int angle , float speed){
+    void via_navigate(float yg , float xg ,int angle , float speed,bool ramp=false){
       while(1){
         distance = get_distance_vector();
         float x = *(distance+1);
         float y = *distance;
         float disp_error = sqrt((xg-x)*(xg-x) + (yg-y)*(yg-y));
         float alp = fmod((360 + (atan2(yg-y, xg-x) * RAD_TO_DEG)), 360);
-
-        error_heading = control_heading(angle,fmod(alp+yaw,360),speed);
+        error_heading = control_heading(angle,fmod(alp+yaw,360),speed,ramp);
         if(disp_error < 0.025){
           break;
         }
