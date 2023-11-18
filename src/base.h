@@ -8,7 +8,7 @@
 #include <utility/imumaths.h>
 
 
-#define BNO055_SAMPLERATE_DELAY_MS (69)
+#define BNO055_SAMPLERATE_DELAY_MS (100)
 
 // Check I2C device address and correct line below (by default address is 0x29 or 0x28)
 //                                   id, address
@@ -24,10 +24,13 @@ float alp = 90;
 float _x = 0, _y = 0, w = 0;
 float l = 0.089;
 
+
+
 class IMU_t {
 
   public:
-    float yaw, pitch, roll;
+    float yaw, pitch, roll,acel_z,vel_z,pos_z,prev_acel_z;
+    unsigned long time_pos =0 ;
 
     void displaySensorDetails(void) {
       sensor_t sensor;
@@ -122,15 +125,23 @@ class IMU_t {
         pitch = event.orientation.y;
         roll = event.orientation.z;
 
+        acel_z = event.acceleration.z;
+        vel_z = (acel_z)*0.1+0.153;
+        pos_z = vel_z*0.1;
+        
+        Serial.printf("POS_Z : %f\n",vel_z);
+        prev_acel_z = acel_z;
+        
 
 
-            //    Serial.print("Yaw: ");
-            //    Serial.print(yaw);
-            //    Serial.print("\tPitch: ");
-            //    Serial.print(pitch);
-            //    Serial.print("\tRoll: ");
-            //    Serial.print(roll);
-            //    Serial.println();
+
+              //  Serial.print("Yaw: ");
+              //  Serial.print(yaw);
+              //  Serial.print("\tPitch: ");
+              //  Serial.print(pitch);
+              //  Serial.print("\tRoll: ");
+              //  Serial.print(roll);
+              //  Serial.println();
 
 
       }
@@ -224,15 +235,32 @@ class Control : public Wheels , public IMU_t{
     // float p2p_kp = 100.0 ,p2p_ki = 0.0 ,p2p_kd = 0.00;
     
     unsigned long dt;
+    
+    int cnt_obs;
+    float diff_pitch,diff_roll;
+    unsigned long time_obs;
+    float prev_pitch , prev_roll;
+
+    int cnt_slope = 0;
+    bool pass_slope = false;
+
+    
+    
     public:
         float imu_error , imu_error_sum,imu_error_diff,imu_prev_error,imu_control=0.0f;
         float* distance;
         uint8_t p2p_cnt;
+        uint8_t head_cnt;
         float p2p_sum_error ,p2p_prev_disp;
         float pvector[2] = {0.0f,0.0f};
         float dvector[2];
         float px,py;
         float error_heading;
+
+        unsigned long time_slope;
+        
+
+
 
         float control_heading(int target_angle ,int alp , float vr , bool ramp = false){
             imu_current_time = micros();
@@ -271,6 +299,119 @@ class Control : public Wheels , public IMU_t{
             return imu_error;
         }
 
+        int control_obs_loop(int target_angle ,int alp , float vr){
+          call_bno(); 
+          if(millis() - time_obs > 10){
+            time_obs = millis();
+            cnt_obs ++;
+            Serial.printf("cnt : %d\n",cnt_obs);
+            // if(cnt_obs > 60){
+            //   break;
+            // }
+
+            diff_pitch = fabs(pitch - prev_pitch);
+            diff_roll = fabs(roll - prev_roll);
+            prev_pitch = pitch;
+            prev_roll = roll;
+
+            if(diff_pitch > 0.7 || diff_roll > 0.6|| fabs(-3.31 -pitch) > 3.0 || fabs(-1.625 - roll) > 3.0){
+              Serial.printf("diff pitch : %f diff roll :%f pitch: %f cnt :%f\n ",pitch - prev_pitch,roll - prev_roll , pitch,cnt_obs);
+              cnt_obs = 0;
+            }
+
+            imu_current_time = micros();
+            imu_error = target_angle - yaw;
+            
+    
+            if (imu_error < - 180) {
+                imu_error += 360;
+            }
+            if (imu_error > 180) {
+                imu_error -= 360;
+            }
+            imu_error_sum += imu_error;
+            if(fabs(imu_error) < 1.0f) imu_error_sum = 0;
+            imu_error_sum = constrain(imu_error_sum,-60000,60000);
+            imu_error_diff = imu_error - imu_prev_error;
+            // imu_control = kp * imu_error + ki * imu_error_sum * imu_dt_time + kd * imu_error_diff / imu_dt_time;
+            imu_control = kp_imu*imu_error + ki_imu * imu_error_sum  + kd_imu * imu_error_diff;
+
+            imu_control = constrain(imu_control, -500, 500);
+        
+            move(vr,alp,imu_control*-1);
+            
+            // Serial.printf("yaw = %f error= %f \t control= %f  sum_error= %f termI= %f\n",yaw,imu_error,imu_control,imu_error_sum,ki_imu*imu_error_sum);
+
+            imu_prev_error = imu_error;
+
+            imu_dt_time = ((imu_current_time - imu_last_time) / 1.0e6 ) + 0.001f;
+
+            imu_last_time = imu_current_time;
+        }
+        return cnt_obs;
+          
+        }
+        void reset_time_slope(void){
+          time_slope = 0;
+
+        }
+
+        bool control_slope_loop(int target_angle ,int alp , float vr){
+          call_bno(); 
+          if(fabs(-3.85-pitch) <1.10 && fabs(-2.25-roll) < 4.80){
+            Serial.printf("Normal cnt: %d :: %f\n",cnt_slope,-3.85-pitch);
+            if(cnt_slope == 2 ){
+              pass_slope = true;
+            }
+
+          }
+          else if(-3.85-pitch < -1.10){
+            Serial.printf("Take off %f\n",-3.85-pitch);
+            cnt_slope = 1;
+
+          }
+          else if(-3.85 - pitch > 1.10){
+            Serial.printf("Landing %f\n",-3.85-pitch);
+            cnt_slope = 2;
+          }
+
+          imu_current_time = micros();
+          imu_error = target_angle - yaw;
+            
+    
+          if (imu_error < - 180) {
+              imu_error += 360;
+          }
+          if (imu_error > 180) {
+              imu_error -= 360;
+          }
+          imu_error_sum += imu_error;
+          if(fabs(imu_error) < 1.0f) imu_error_sum = 0;
+          imu_error_sum = constrain(imu_error_sum,-60000,60000);
+          imu_error_diff = imu_error - imu_prev_error;
+            // imu_control = kp * imu_error + ki * imu_error_sum * imu_dt_time + kd * imu_error_diff / imu_dt_time;
+          imu_control = kp_imu*imu_error + ki_imu * imu_error_sum  + kd_imu * imu_error_diff;
+
+          imu_control = constrain(imu_control, -500, 500);
+        
+          move(vr,alp,imu_control*-1);
+            
+            // Serial.printf("yaw = %f error= %f \t control= %f  sum_error= %f termI= %f\n",yaw,imu_error,imu_control,imu_error_sum,ki_imu*imu_error_sum);
+
+          imu_prev_error = imu_error;
+
+          imu_dt_time = ((imu_current_time - imu_last_time) / 1.0e6 ) + 0.001f;
+
+          imu_last_time = imu_current_time;
+          // else if(fabs(-3.85-pitch) >5.00 || fabs(-2.25-roll)> 4.80){
+          //   Serial.printf("Anormal \n");
+          //   cnt_slope = 1;
+
+          // }
+          return pass_slope;
+
+        }
+
         float* get_distance_vector(void){
 
             call_bno();
@@ -295,7 +436,7 @@ class Control : public Wheels , public IMU_t{
             pvector[1] = dvector[1];
             // Serial.printf("rawY = %f rawX = %f y = %f x = %f yaw = %f\n",raw_y,raw_x,y,x,yaw);
 
-            // Serial.printf("Y = %f X = %f Transf_Y = %f Transf_x = %f yaw = %f\n",y,x,dvector[0],dvector[1],yaw);
+            Serial.printf("Y = %f X = %f Transf_Y = %f Transf_x = %f yaw = %f enc1 :%f\n",y,x,dvector[0],dvector[1],yaw,enc_cnt[0]);
 
             return dvector;
             // Serial.printf("%d , %d , %d , %f , %f\n",enc_cnt[0],enc_cnt[1],enc_cnt[2],pvector[0],pvector[1]);// Serial.println(pvector[0]);
@@ -322,7 +463,7 @@ class Control : public Wheels , public IMU_t{
             p2p_prev_disp = disp_error;
             dt = current_time;
 
-            Serial.printf("error_yaw = %f error = %f sum_heading = %f control = %f sum_error = %f p2p_cnt = %d\n",error_heading,disp_error,imu_error_sum,control_displecement,p2p_sum_error,p2p_cnt);
+            // Serial.printf("error_yaw = %f error = %f sum_heading = %f control = %f sum_error = %f p2p_cnt = %d\n",error_heading,disp_error,imu_error_sum,control_displecement,p2p_sum_error,p2p_cnt);
 
             // float detlas = sqrt(pow(pos.x-posx_prev,2)+pow(pos.y-posy_prev,2));
             // vel = deltas/0.1;
@@ -332,6 +473,17 @@ class Control : public Wheels , public IMU_t{
 
         
     }
+    void reset_odom(){
+      dvector[0] = 0.0;
+      dvector[1] = 0.0;
+      pvector[0] = 0.0;
+      pvector[1] = 0.0;
+      enc_cnt[0] = 0.0;
+      enc_cnt[1] = 0.0;
+      enc_cnt[2] = 0.0;
+      px = 0.0;
+      py = 0.0;
+    }
 
       
 
@@ -340,7 +492,13 @@ class Control : public Wheels , public IMU_t{
 class Navigation : public Control{
   
   public:
-    void via_navigate(float yg , float xg ,int angle , float speed,bool ramp=false){
+    void via_navigate(float yg , float xg ,int angle ,float speed,bool reset = false,bool ramp=false){
+      if(reset){
+        *distance = 0.0;
+        *(distance+1) = 0.0;
+        reset_odom();
+
+      }
       while(1){
         distance = get_distance_vector();
         float x = *(distance+1);
@@ -351,7 +509,7 @@ class Navigation : public Control{
         if(disp_error < 0.025){
           break;
         }
-        Serial.printf("error_yaw = %f error = %f\n",error_heading,disp_error);
+        // Serial.printf("y = %f x = %f Alpha = %f error_yaw = %f error = %f\n",y,x,alp,error_heading,disp_error);
       }
         
   }
@@ -366,6 +524,19 @@ class Navigation : public Control{
         if(++p2p_cnt >= 200)break;
       }
     }
+  }
+
+  void head_navigate(float target_angle){
+    head_cnt = 0;
+    imu_error_sum =0;
+    while(1){
+      Serial.printf("In heading loop\n");
+      if(fabs(control_heading(target_angle,0,0)) < 1.0){
+          if(++head_cnt >= 200)break;
+      }
+
+    }
+
   }
 
 };

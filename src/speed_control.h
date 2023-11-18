@@ -90,7 +90,7 @@ float Ki3 = 0.06;
 float Kd3 = 2.5;
 float control_signal_3 = 0;
 
-volatile int enc_cnt[3];
+volatile long enc_cnt[3];
 
 
 void Drive_Motor1(int16_t _duty){
