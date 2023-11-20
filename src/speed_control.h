@@ -2,26 +2,41 @@
 
 IntervalTimer speed_control_timer;
 
-#define MOTOR1_PWM 5
-#define MOTOR1_INA 7
-#define MOTOR1_INB 6
+// #define MOTOR1_PWM 5
+// #define MOTOR1_INA 7
+// #define MOTOR1_INB 6
 
-#define MOTOR2_PWM 2
-#define MOTOR2_INA 3
-#define MOTOR2_INB 4
+// #define MOTOR2_PWM 2
+// #define MOTOR2_INA 3
+// #define MOTOR2_INB 4
 
-#define MOTOR3_PWM 23
-#define MOTOR3_INA 21
-#define MOTOR3_INB 22
+// #define MOTOR3_PWM 23
+// #define MOTOR3_INA 21
+// #define MOTOR3_INB 22
 
-#define ENCODER1_A 33
-#define ENCODER1_B 34
+#define BUF_L 39
+#define BUF_R 38
 
-#define ENCODER2_A 37
-#define ENCODER2_B 38
+#define ENCODER1_A 11
+#define ENCODER1_B 10
 
-#define ENCODER3_A 35
-#define ENCODER3_B 36
+#define ENCODER2_A 28
+#define ENCODER2_B 29
+
+#define ENCODER3_A 8
+#define ENCODER3_B 9
+
+//
+#define MOTOR1_PWM 3
+#define MOTOR1_DIR 2
+
+#define MOTOR2_PWM 5
+#define MOTOR2_DIR 4
+
+#define MOTOR3_PWM 7
+#define MOTOR3_DIR 6
+
+
 
 #define MAXIMUM_DUTY 1023
 
@@ -36,6 +51,9 @@ unsigned long prev_time;
 String input_string;
 int16_t input_speed = 0;
 
+uint32_t count_int_enc[3];
+uint32_t pre_count_int_enc[3];
+
 //=========================================
 //==               Motor_1               ==
 //=========================================
@@ -49,9 +67,9 @@ float Target_1 = 0.0f;
 //- PID_Related -
 float error_1, prev_error_1, integral_1, derivative_1;
 //- Parameter -
-float Kp1 = 15.0;
-float Ki1 = 0.05;
-float Kd1 = 0.5;
+float Kp1 = 2.42f; // 15.0
+float Ki1 = 0.42f; // 0.06
+float Kd1 = 0.0f; // 0.5
 float control_signal_1 = 0;
 
 //=========================================
@@ -67,9 +85,9 @@ float Target_2 = 0.0f;
 //- PID_Related -
 float error_2, prev_error_2, integral_2, derivative_2;
 //- Parameter -
-float Kp2 = 15.0;
-float Ki2 = 0.05;
-float Kd2 = 0.5;
+float Kp2 = 2.42f;//15.0;
+float Ki2 = 0.42f;//0.06;
+float Kd2 = 0.0f;
 float control_signal_2 = 0;
 
 //=========================================
@@ -85,9 +103,9 @@ float Target_3 = 0.0f;
 //- PID_Related -
 float error_3, prev_error_3, integral_3, derivative_3;
 //- Parameter -
-float Kp3 = 10.0;
-float Ki3 = 0.06;
-float Kd3 = 2.5;
+float Kp3 = 2.42f;//10.0;
+float Ki3 = 0.42f;//0.05;
+float Kd3 = 0.0f;
 float control_signal_3 = 0;
 
 volatile long enc_cnt[3];
@@ -98,16 +116,13 @@ void Drive_Motor1(int16_t _duty){
   else if (_duty < -MAXIMUM_DUTY) _duty = -MAXIMUM_DUTY;
 
   if (_duty > 0) {
-    digitalWrite(MOTOR1_INA, HIGH);
-    digitalWrite(MOTOR1_INB, LOW);
+    digitalWrite(MOTOR1_DIR, HIGH);
   }
   else if (_duty < 0) {
-    digitalWrite(MOTOR1_INA, LOW);
-    digitalWrite(MOTOR1_INB, HIGH);
+    digitalWrite(MOTOR1_DIR, LOW);
   }
   else {
-    digitalWrite(MOTOR1_INA, LOW);
-    digitalWrite(MOTOR1_INB, LOW);
+    digitalWrite(MOTOR1_DIR, LOW);
   }
   analogWrite(MOTOR1_PWM, abs(_duty));
 }
@@ -117,16 +132,13 @@ void Drive_Motor2(int16_t _duty) {
   else if (_duty < -MAXIMUM_DUTY) _duty = -MAXIMUM_DUTY;
 
   if (_duty > 0) {
-    digitalWrite(MOTOR2_INA, HIGH);
-    digitalWrite(MOTOR2_INB, LOW);
+    digitalWrite(MOTOR2_DIR, HIGH);
   }
   else if (_duty < 0) {
-    digitalWrite(MOTOR2_INA, LOW);
-    digitalWrite(MOTOR2_INB, HIGH);
+    digitalWrite(MOTOR2_DIR, LOW);
   }
   else {
-    digitalWrite(MOTOR2_INA, LOW);
-    digitalWrite(MOTOR2_INB, LOW);
+    digitalWrite(MOTOR2_DIR, LOW);
   }
   analogWrite(MOTOR2_PWM, abs(_duty));
 }
@@ -136,24 +148,21 @@ void Drive_Motor3(int16_t _duty){
   else if (_duty < -MAXIMUM_DUTY) _duty = -MAXIMUM_DUTY;
 
   if (_duty > 0) {
-    digitalWrite(MOTOR3_INA, HIGH);
-    digitalWrite(MOTOR3_INB, LOW);
+    digitalWrite(MOTOR3_DIR, HIGH);
   }
   else if (_duty < 0) {
-    digitalWrite(MOTOR3_INA, LOW);
-    digitalWrite(MOTOR3_INB, HIGH);
+    digitalWrite(MOTOR3_DIR, LOW);
   }
   else {
-    digitalWrite(MOTOR3_INA, LOW);
-    digitalWrite(MOTOR3_INB, LOW);
+    digitalWrite(MOTOR3_DIR, LOW);
   }
   analogWrite(MOTOR3_PWM, abs(_duty));
 }
 
-
-
 void readEncoder1(){
  ENC1_B = digitalRead(ENCODER1_B);
+ count_int_enc[0]++;
+//  Serial.printf("%d\n",ENC1_B);
  if(ENC1_B > 0){
    enc_cnt[0]++;
  } else{
@@ -170,6 +179,8 @@ void readEncoder1(){
 
 void readEncoder2(){
  ENC2_B = digitalRead(ENCODER2_B);
+ count_int_enc[1]++;
+
  if(ENC2_B > 0){
    enc_cnt[1]++;
  } else{
@@ -186,6 +197,8 @@ void readEncoder2(){
 
 void readEncoder3(){
  ENC3_B = digitalRead(ENCODER3_B);
+ count_int_enc[2]++;
+
  if(ENC3_B > 0){
    enc_cnt[2]++;
  } else{
@@ -199,10 +212,12 @@ void readEncoder3(){
   }
   prev_time_3 = current_time_3;
 }
+
+
 void speed_control_callback(){
-      if(millis() - prev_loop_1 >= 1){
-    prev_loop_1 = millis();
-    
+    if(count_int_enc[0] == pre_count_int_enc[0]) delta_time_1 = 0;
+    pre_count_int_enc[0] = count_int_enc[0];
+
     if (delta_time_1 == 0){ //Start
       frequency_1 = 0;
     } else{
@@ -238,13 +253,11 @@ void speed_control_callback(){
     control_signal_1 = constrain(control_signal_1, 0, 1023);
 
     if(Target_1 < 0) control_signal_1 = -control_signal_1;
-    Drive_Motor1(control_signal_1);
-  } 
+  
 
 //-----------------------------------------------------------------
-
-  if(millis() - prev_loop_2 >= 1){
-    prev_loop_2 = millis();
+    if(count_int_enc[1] == pre_count_int_enc[1]) delta_time_2 = 0;
+    pre_count_int_enc[1] = count_int_enc[1];
 
     if (delta_time_2 == 0){ //Start
       frequency_2 = 0;
@@ -281,13 +294,11 @@ void speed_control_callback(){
     control_signal_2 = constrain(control_signal_2, 0, 1023);
 
     if(Target_2 < 0) control_signal_2 = -control_signal_2;
-    Drive_Motor2(control_signal_2);
-  }
+  
 
 //-----------------------------------------------------------------
-  
-  if(millis() - prev_loop_3 >= 1){
-    prev_loop_3 = millis();
+    if(count_int_enc[2] == pre_count_int_enc[2]) delta_time_3 = 0;
+    pre_count_int_enc[2] = count_int_enc[2];
 
     if (delta_time_3 == 0){ //Start
       frequency_3 = 0;
@@ -324,9 +335,10 @@ void speed_control_callback(){
     control_signal_3 = constrain(control_signal_3, 0, 1023);
 
     if(Target_3 < 0) control_signal_3 = -control_signal_3;
-    Drive_Motor3(control_signal_3);
-  }
 
+    Drive_Motor1(control_signal_1);
+    Drive_Motor2(control_signal_2);
+    Drive_Motor3(control_signal_3);
 }
 
 void initial_motor(){
@@ -335,31 +347,32 @@ void initial_motor(){
     analogWriteFrequency(MOTOR2_PWM, 10000);
     analogWriteFrequency(MOTOR3_PWM, 10000);
 
-    pinMode(MOTOR1_PWM, OUTPUT);  //Motor1
-    pinMode(MOTOR1_INA, OUTPUT);
-    pinMode(MOTOR1_INB, OUTPUT);
+    pinMode(ENCODER1_A,INPUT);
+    pinMode(ENCODER1_B,INPUT);
 
-    pinMode(MOTOR2_PWM, OUTPUT);  //Motor2
-    pinMode(MOTOR2_INA, OUTPUT);
-    pinMode(MOTOR2_INB, OUTPUT);
+    pinMode(ENCODER2_A,INPUT);
+    pinMode(ENCODER2_B,INPUT);
+    
+    pinMode(ENCODER3_A,INPUT);
+    pinMode(ENCODER3_B,INPUT);
 
-    pinMode(MOTOR3_PWM, OUTPUT);  //Motor3
-    pinMode(MOTOR3_INA, OUTPUT);
-    pinMode(MOTOR3_INB, OUTPUT);
+    pinMode(BUF_L,INPUT);
+    pinMode(BUF_R,INPUT);
 
-    pinMode(ENCODER1_A, INPUT);   //Encoder1
-    pinMode(ENCODER1_B, INPUT);
+    pinMode(MOTOR1_DIR,OUTPUT);
+    pinMode(MOTOR1_PWM,OUTPUT);
+    pinMode(MOTOR2_DIR,OUTPUT);
+    pinMode(MOTOR2_PWM,OUTPUT);
+    pinMode(MOTOR3_DIR,OUTPUT);
+    pinMode(MOTOR3_PWM,OUTPUT);
 
-    pinMode(ENCODER2_A, INPUT);   //Encoder2
-    pinMode(ENCODER2_B, INPUT);
-
-    pinMode(ENCODER3_A, INPUT);   //Encoder3
-    pinMode(ENCODER3_B, INPUT);
     
     attachInterrupt(digitalPinToInterrupt(ENCODER1_A), readEncoder1, RISING);
     attachInterrupt(digitalPinToInterrupt(ENCODER2_A), readEncoder2, RISING);
     attachInterrupt(digitalPinToInterrupt(ENCODER3_A), readEncoder3, RISING);
-    speed_control_timer.begin(speed_control_callback,1000);
+
+    
+    speed_control_timer.begin(speed_control_callback,10000);
 }
 
 

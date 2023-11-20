@@ -125,12 +125,12 @@ class IMU_t {
         pitch = event.orientation.y;
         roll = event.orientation.z;
 
-        acel_z = event.acceleration.z;
-        vel_z = (acel_z)*0.1+0.153;
-        pos_z = vel_z*0.1;
+        // acel_z = event.acceleration.z;
+        // vel_z = (acel_z)*0.1+0.153;
+        // pos_z = vel_z*0.1;
         
-        Serial.printf("POS_Z : %f\n",vel_z);
-        prev_acel_z = acel_z;
+        // Serial.printf("POS_Z : %f\n",vel_z);
+        // prev_acel_z = acel_z;
         
 
 
@@ -225,11 +225,11 @@ class Control : public Wheels , public IMU_t{
     unsigned long imu_current_time,time,imu_last_time,imu_dt_time;
 
     float kp_imu = 16.0;
-    float ki_imu = 0.001; // 35.5
+    float ki_imu = 0.0001; // 35.5
     float kd_imu = 0.0;
 
-    const float consy = 3184.2f;
-    const float consx = 3193.8f;
+    const float consy = 3167.28f;
+    const float consx = 3140.66f;
     
     float p2p_kp = 150.0 ,p2p_ki = 0.001 ,p2p_kd = 0.05;
     // float p2p_kp = 100.0 ,p2p_ki = 0.0 ,p2p_kd = 0.00;
@@ -276,12 +276,12 @@ class Control : public Wheels , public IMU_t{
             }
             imu_error_sum += imu_error;
             if(fabs(imu_error) < 1.0f) imu_error_sum = 0;
-            imu_error_sum = constrain(imu_error_sum,-60000,60000);
+            imu_error_sum = constrain(imu_error_sum,-45000,45000);
             imu_error_diff = imu_error - imu_prev_error;
             // imu_control = kp * imu_error + ki * imu_error_sum * imu_dt_time + kd * imu_error_diff / imu_dt_time;
             imu_control = kp_imu*imu_error + ki_imu * imu_error_sum  + kd_imu * imu_error_diff;
 
-            imu_control = constrain(imu_control, -500, 500);
+            imu_control = constrain(imu_control, -600, 600);
             if(ramp){
               move_ramp(vr,alp,imu_control*-1);
             }
@@ -304,7 +304,7 @@ class Control : public Wheels , public IMU_t{
           if(millis() - time_obs > 10){
             time_obs = millis();
             cnt_obs ++;
-            Serial.printf("cnt : %d\n",cnt_obs);
+            // Serial.printf("cnt : %d\n",cnt_obs);
             // if(cnt_obs > 60){
             //   break;
             // }
@@ -314,7 +314,7 @@ class Control : public Wheels , public IMU_t{
             prev_pitch = pitch;
             prev_roll = roll;
 
-            if(diff_pitch > 0.7 || diff_roll > 0.6|| fabs(-3.31 -pitch) > 3.0 || fabs(-1.625 - roll) > 3.0){
+            if(diff_pitch > 0.7 || diff_roll > 0.6|| fabs(-0.25 -pitch) > 3.0 || fabs(-1.0 - roll) > 3.0){
               Serial.printf("diff pitch : %f diff roll :%f pitch: %f cnt :%f\n ",pitch - prev_pitch,roll - prev_roll , pitch,cnt_obs);
               cnt_obs = 0;
             }
@@ -358,19 +358,19 @@ class Control : public Wheels , public IMU_t{
 
         bool control_slope_loop(int target_angle ,int alp , float vr){
           call_bno(); 
-          if(fabs(-3.85-pitch) <1.10 && fabs(-2.25-roll) < 4.80){
+          if(fabs(0.06-pitch) <1.10 && fabs(-1.63-roll) < 4.80){
             Serial.printf("Normal cnt: %d :: %f\n",cnt_slope,-3.85-pitch);
             if(cnt_slope == 2 ){
               pass_slope = true;
             }
 
           }
-          else if(-3.85-pitch < -1.10){
+          else if(0.06-pitch < -1.10){
             Serial.printf("Take off %f\n",-3.85-pitch);
             cnt_slope = 1;
 
           }
-          else if(-3.85 - pitch > 1.10){
+          else if(0.06 - pitch > 1.10){
             Serial.printf("Landing %f\n",-3.85-pitch);
             cnt_slope = 2;
           }
@@ -434,10 +434,9 @@ class Control : public Wheels , public IMU_t{
             py = y;
             pvector[0] = dvector[0];
             pvector[1] = dvector[1];
-            // Serial.printf("rawY = %f rawX = %f y = %f x = %f yaw = %f\n",raw_y,raw_x,y,x,yaw);
+            Serial.printf("rawY = %f rawX = %f y = %f x = %f yaw = %f\n",raw_y,raw_x,y,x,yaw);
 
-            Serial.printf("Y = %f X = %f Transf_Y = %f Transf_x = %f yaw = %f enc1 :%f\n",y,x,dvector[0],dvector[1],yaw,enc_cnt[0]);
-
+            // Serial.printf("Y = %f X = %f Transf_Y = %f Transf_x = %f yaw = %f enc1 :%f\n",y,x,dvector[0],dvector[1],yaw,enc_cnt[0]);
             return dvector;
             // Serial.printf("%d , %d , %d , %f , %f\n",enc_cnt[0],enc_cnt[1],enc_cnt[2],pvector[0],pvector[1]);// Serial.println(pvector[0]);
         
@@ -530,8 +529,8 @@ class Navigation : public Control{
     head_cnt = 0;
     imu_error_sum =0;
     while(1){
-      Serial.printf("In heading loop\n");
-      if(fabs(control_heading(target_angle,0,0)) < 1.0){
+      Serial.printf("In heading loop : %f\n",yaw);
+      if(fabs(control_heading(target_angle,0,0)) < 1.05){
           if(++head_cnt >= 200)break;
       }
 
