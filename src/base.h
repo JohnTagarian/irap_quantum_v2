@@ -135,13 +135,13 @@ class IMU_t {
 
 
 
-              //  Serial.print("Yaw: ");
-              //  Serial.print(yaw);
-              //  Serial.print("\tPitch: ");
-              //  Serial.print(pitch);
-              //  Serial.print("\tRoll: ");
-              //  Serial.print(roll);
-              //  Serial.println();
+               Serial.print("Yaw: ");
+               Serial.print(yaw);
+               Serial.print("\tPitch: ");
+               Serial.print(pitch);
+               Serial.print("\tRoll: ");
+               Serial.print(roll);
+               Serial.println();
 
 
       }
@@ -201,7 +201,7 @@ class Wheels{
             // Serial.printf("speed = %f %f %f\n",*(rpm)* 1,*(rpm+1)* 1,*(rpm+2)* 1);
         }
         void move_ramp(int speed ,int alpha ,int W){
-          ramp += 0.0004;
+          ramp += 0.015;
           if(ramp > speed){
             ramp = speed;
           }
@@ -241,12 +241,14 @@ class Control : public Wheels , public IMU_t{
     unsigned long time_obs;
     float prev_pitch , prev_roll;
 
-    int cnt_slope = 0;
+    
     bool pass_slope = false;
 
     
     
     public:
+        int cnt_slope = 0;
+
         float imu_error , imu_error_sum,imu_error_diff,imu_prev_error,imu_control=0.0f;
         float* distance;
         uint8_t p2p_cnt;
@@ -358,21 +360,31 @@ class Control : public Wheels , public IMU_t{
 
         bool control_slope_loop(int target_angle ,int alp , float vr){
           call_bno(); 
-          if(fabs(0.06-pitch) <1.10 && fabs(-1.63-roll) < 4.80){
+          if(fabs(0.06-pitch) <1.10 && fabs(-1.63-roll) < 3.10){
             Serial.printf("Normal cnt: %d :: %f\n",cnt_slope,-3.85-pitch);
-            if(cnt_slope == 2 ){
+            if(cnt_slope == 2 || cnt_slope == 3 || cnt_slope == 4){
               pass_slope = true;
             }
 
           }
-          else if(0.06-pitch < -1.10){
+          else if(0.06-pitch < -1.10 && fabs(-1.63-roll) < 3.10){
             Serial.printf("Take off %f\n",-3.85-pitch);
             cnt_slope = 1;
 
           }
-          else if(0.06 - pitch > 1.10){
+          else if(0.06 - pitch > 1.10 && fabs(-1.63-roll) < 3.10){
             Serial.printf("Landing %f\n",-3.85-pitch);
             cnt_slope = 2;
+          }
+          else if(fabs(-1.63-roll) > 3.10){
+            Serial.printf("Anomal %f\n",-1.63-roll); 
+            cnt_slope = 2;
+            // if(-1.63-roll < 0){
+            //   cnt_slope = 3;
+            // }
+            // else if(-1.63-roll > 0){
+            //   cnt_slope = 4;
+            // }
           }
 
           imu_current_time = micros();

@@ -1,11 +1,6 @@
 #include <Arduino.h>
 #include <base.h>
-
-float path_x[20] = {-0.025, -0.05, -0.07500000000000001, -0.1, -0.125, -0.15};
-float path_y[20] = {0.0022, 0.0091, 0.0215, 0.0414, 0.075, 0.1414};
-float npath = 6;
-
-
+#include <arm.h>
 
 unsigned long timer_obs;
 
@@ -13,6 +8,7 @@ IMU_t IMU;
 Wheels wheels;
 Control control;
 Navigation navigation;
+Arm arm;
 
 IntervalTimer obs_ISR;
 
@@ -71,6 +67,7 @@ void plan(void){
 
 
 }
+
 void step_back(int target_angle){
   while(1){
     control.control_heading(target_angle,270,60);
@@ -91,18 +88,47 @@ void set_origin(int target_angle){
 
     }
     else{
-      control.control_heading(target_angle,90,60);
+      control.control_heading(target_angle,90,100);
     }
 
   }
 }
 
+int alp_stand = 330;
+unsigned long time_stand;
+
+void set_stand_circle(void){
+  time_stand = millis();
+  while(1){
+  control.control_heading(90,alp_stand,50);
+  if(!digitalRead(BUF_LIM_SB) && !digitalRead(BUF_LIM_SF)){
+    alp_stand = 290;
+  }
+  else if(!digitalRead(BUF_LIM_FL) && !digitalRead(BUF_LIM_FR)){
+    alp_stand = 350;
+  }
+  else{
+    alp_stand = 330;
+  }
+
+  if(!digitalRead(BUF_LIM_FL) && !digitalRead(BUF_LIM_FR) && !digitalRead(BUF_LIM_SB) && !digitalRead(BUF_LIM_SF)){
+    if(millis() - time_stand > 100){
+      break;
+    }
+    
+  }
+  else{
+    time_stand = millis();
+  }
+  }
+}
+
 void plan2(void){
-  navigation.via_navigate(0.51,0.0,0,80);
+  navigation.via_navigate(0.51,0.0,0,100);
   wheels.stop();
   delay(200);
 
-  navigation.via_navigate(0.5,-0.52,0,80);
+  navigation.via_navigate(0.5,-0.52,0,100);
   navigation.head_navigate(180);
   wheels.stop();
   delay(200);
@@ -128,49 +154,103 @@ void plan2(void){
     }
 
   }
+  navigation.via_navigate(0.03,0.0,270,90,true);
+
   set_origin(270);
   navigation.head_navigate(0);
   set_origin(0);
   navigation.head_navigate(270);
   set_origin(270);
-  navigation.via_navigate(-0.3,0.0,270,120,true);
+
+  navigation.via_navigate(-0.13,0.0,270,120,true);
   navigation.via_navigate(-0.45,-0.1,270,120);
   navigation.via_navigate(-0.5,-0.8,270,120);
   navigation.via_navigate(0.2,-0.2,270,120,true);
   navigation.via_navigate(0.25,0.0,270,120,true);
   navigation.via_navigate(0.15,0.15,270,120,true);
   navigation.via_navigate(0.15,0.15,270,120,true);
-   navigation.via_navigate(0.0,0.0,270,120,true);
-  navigation.p2p_navigate(0.0,0.4,270);
+  navigation.via_navigate(0.0,0.0,270,120,true);
+  navigation.via_navigate(0.0,0.4,270,80,true);
+  navigation.head_navigate(90);
 
+  // Road to drop
+  navigation.via_navigate(-0.15,0.0,90,70,true);
 
-  // navigation.head_navigate(270);
-  // wheels.stop();
-  // delay(500);
+  set_stand_circle();
+
   while(1){
     Serial.printf("Stop\n");
     wheels.stop();
   }
-
-  
-
 }
 
-void setup() {
-  Serial.begin(115200);
-  
 
-  IMU.initial();
-  initial_motor();
-  
-  delay(1000);
+void plan3(){
+  navigation.via_navigate(0.51,0.0,0,100);
+  wheels.stop();
+  delay(200);
 
+  navigation.via_navigate(0.5,-0.52,0,100);
+  navigation.head_navigate(180);
+  wheels.stop();
+  delay(200);
+
+  timer_obs = millis();
+  while(1){
+    if((control.control_obs_loop(180,90,100) > 50) && (millis()-timer_obs > 2500)){
+      break;
+    }
+  }
+
+  wheels.stop();
+  delay(200);
+  set_origin(180);
+  navigation.head_navigate(270);
+  delay(200);
+  navigation.via_navigate(-0.02,-0.5,270,90,true);
+  delay(200);
+  while(1){
+    if(control.control_slope_loop(270,90,60)){
+      break;
+    }
+
+  }
+
+  navigation.via_navigate(0.03,0.0,270,90,true);
   
+  set_origin(270);
+  navigation.head_navigate(0);
+  set_origin(0);
+  navigation.head_navigate(270);
+  set_origin(270);
+
+  navigation.via_navigate(-0.2,0.027,270,120,true);
+  navigation.via_navigate(0.0,0.0,270,120,true);
+
+  float xp[] = {0.0, -0.03, -0.05, -0.08, -0.1, -0.12, -0.15, -0.17, -0.2, -0.22, -0.25, -0.2};
+  float yp[] = {-0.0, -0.12, -0.17, -0.2, -0.22, -0.24, -0.26, -0.27, -0.28, -0.29, -0.3, -0.3};
+  for(int i = 0 ; i < 12 ; i++){
+    navigation.via_navigate(yp[i],xp[i],270,100);
+  }
+  navigation.via_navigate(0.0,-0.55,270,120,true);
+
+  // float xp[] = {-0.0, -0.13, -0.18, -0.22, -0.24, -0.27, -0.29, -0.3, -0.32, -0.33, -0.34, -0.34, -0.35, -0.35, -0.35, -0.35, -0.35, -0.34, -0.34, -0.33, -0.32, -0.3, -0.29, -0.27, -0.24, -0.22, -0.18, -0.13};
+  // float yp[] = {0.0, 0.03, 0.05, 0.08, 0.1, 0.12, 0.15, 0.17, 0.2, 0.22, 0.25, 0.27, 0.3, 0.33, 0.35, 0.38, 0.4, 0.43, 0.45, 0.48, 0.5, 0.53, 0.55, 0.58, 0.6, 0.63, 0.65, 0.68};
+  // navigation.via_navigate(0.0,0.0,270,120,true);
+  // for(int i = 0 ; i < 28; i++){
+  //   navigation.via_navigate(yp[i],xp[i],270,100);
+  // }
+
+  while(1){
+    Serial.printf("Stop\n");
+    wheels.stop();
+  }
 }
+
+
 
 unsigned long time_plot;
 void plot(){
-
   if(Serial.available()) {
     input_string = Serial.readString();
     input_speed = input_string.toInt();
@@ -222,13 +302,52 @@ void check_obs(void){
     Serial.printf("Stop\n");
     wheels.stop();
   }
-
 }
 
 
+void setup() {
+  Serial.begin(115200);
+  IMU.initial();
+  initial_base();
+  arm.initial();
+
+
+  while(arm.read_tof() > 40){
+    Serial.printf("Wait Robojames\n");
+  }
+  delay(500);
+  arm.grip();
+  delay(2500);
+  arm.lift_up();
+  delay(200);
+  // arm.lift_up();
+
+
+  
+}
+
 void loop() {
+  Serial.printf("Servo\n");
   
 
+  // set_stand();
+  // while(1){
+  //   Serial.printf("Stop\n");
+  //   wheels.stop();
+  // }
+  // Serial.printf("%d %d %d %d\n",digitalRead(BUF_LIM_SB),digitalRead(BUF_LIM_SF),digitalRead(BUF_LIM_FL),digitalRead(BUF_LIM_FR));
+  // navigation.via_navigate(1.0,0.0,0,60);
+  // for(int i = 0 ; i < 28; i++){
+  //   navigation.via_navigate(yp[i],xp[i],0,100);
+
+  // }
+
+  // while(1){
+  //   Serial.printf("Stop\n");
+  //   wheels.stop();
+  // }
+
+  // control.control_slope_loop(0,0,0);
   plan2();
 
   // control.control_slope_loop(0,0,0);
@@ -250,10 +369,12 @@ void loop() {
 
   // }
 
-  // wheels.cmd_motor(50,0,0);
+  // wheels.cmd_motor(20,20,20);
   // wheels.move(100,90,0);
-  // Drive_Motor1(100);
 
+  // Drive_Motor1(-500);
+  // Drive_Motor2(-500);
+  // Drive_Motor3(-500);
   
   // Serial.printf("A: %d B: %d\n",digitalRead(28),digitalRead(29));
 
@@ -282,7 +403,7 @@ void loop() {
   
   // wheels.move();
   // while(1){
-  //   control.control_heading(0,90,100);
+    // control.control_heading(0,90,100,true);
 
   // }
 
@@ -296,7 +417,6 @@ void loop() {
   // -3.31 - > p
   // - 1.625 -> 
   // wheels.move(100,120,0);
-  // control.cmd_motor(-50,-50,-50);
   // Serial.printf("ENC1: %d , ENC2: %d , ENC3: %d\n",enc_cnt[0],enc_cnt[1],enc_cnt[2]);
 
 

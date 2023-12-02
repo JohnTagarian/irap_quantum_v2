@@ -14,27 +14,33 @@ IntervalTimer speed_control_timer;
 // #define MOTOR3_INA 21
 // #define MOTOR3_INB 22
 
-#define BUF_L 39
-#define BUF_R 38
+#define BUF_L 32
+#define BUF_R 31
 
-#define ENCODER1_A 11
-#define ENCODER1_B 10
+#define BUF_LIM_FL 15
+#define BUF_LIM_FR 16
+#define BUF_LIM_SB 14
+#define BUF_LIM_SF 17
 
-#define ENCODER2_A 28
-#define ENCODER2_B 29
 
-#define ENCODER3_A 8
-#define ENCODER3_B 9
+#define ENCODER1_A 26
+#define ENCODER1_B 27
+
+#define ENCODER2_A 24
+#define ENCODER2_B 25
+
+#define ENCODER3_A 28
+#define ENCODER3_B 29
 
 //
-#define MOTOR1_PWM 3
-#define MOTOR1_DIR 2
+#define MOTOR1_PWM 6
+#define MOTOR1_DIR 7
 
-#define MOTOR2_PWM 5
-#define MOTOR2_DIR 4
+#define MOTOR2_PWM 4
+#define MOTOR2_DIR 5
 
-#define MOTOR3_PWM 7
-#define MOTOR3_DIR 6
+#define MOTOR3_PWM 2
+#define MOTOR3_DIR 3
 
 
 
@@ -341,7 +347,7 @@ void speed_control_callback(){
     Drive_Motor3(control_signal_3);
 }
 
-void initial_motor(){
+void initial_base(){
     analogWriteResolution(10);
     analogWriteFrequency(MOTOR1_PWM, 10000);
     analogWriteFrequency(MOTOR2_PWM, 10000);
@@ -356,8 +362,15 @@ void initial_motor(){
     pinMode(ENCODER3_A,INPUT);
     pinMode(ENCODER3_B,INPUT);
 
+
     pinMode(BUF_L,INPUT);
     pinMode(BUF_R,INPUT);
+
+    pinMode(BUF_LIM_FL,INPUT);
+    pinMode(BUF_LIM_FR,INPUT);
+    pinMode(BUF_LIM_SB,INPUT);
+    pinMode(BUF_LIM_SF,INPUT);
+
 
     pinMode(MOTOR1_DIR,OUTPUT);
     pinMode(MOTOR1_PWM,OUTPUT);
