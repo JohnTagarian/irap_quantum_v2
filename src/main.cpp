@@ -94,6 +94,33 @@ void set_origin(int target_angle){
   }
 }
 
+void set_origin_bside(int target_angle){
+  while(1){
+    if(analogRead(BUF_L) < 300 && analogRead(BUF_R) < 200){
+      break;
+
+    }
+    else{
+      control.control_heading(target_angle,90,100);
+    }
+
+  }
+}
+
+unsigned long time_ir;
+void set_origin_side(void){
+    while(1){
+    if(analogRead(BUF_L) < 300 || analogRead(BUF_R) < 200){
+      control.control_heading(270,0,100);
+
+    }
+    else{
+      delay(70);
+      break;
+    }
+  }
+}
+
 int alp_stand = 330;
 unsigned long time_stand;
 
@@ -112,7 +139,7 @@ void set_stand_circle(void){
   }
 
   if(!digitalRead(BUF_LIM_FL) && !digitalRead(BUF_LIM_FR) && !digitalRead(BUF_LIM_SB) && !digitalRead(BUF_LIM_SF)){
-    if(millis() - time_stand > 100){
+    if(millis() - time_stand > 200){
       break;
     }
     
@@ -123,12 +150,30 @@ void set_stand_circle(void){
   }
 }
 
+void drop_circle(void){
+  arm.lift_down();
+  wheels.stop();
+  delay(500);
+  navigation.via_navigate(0.0,0.045,80,40,true);
+  arm.drop();
+  wheels.stop();
+  arm.ajar();
+  delay(200);
+  navigation.via_navigate(0.0,0.1,85,40,true);
+  arm.lift_up();
+
+
+}
+
 void plan2(void){
-  navigation.via_navigate(0.51,0.0,0,100);
+  navigation.via_navigate(0.51,0.0,0,120);
   wheels.stop();
   delay(200);
 
-  navigation.via_navigate(0.5,-0.52,0,100);
+  arm.drop();
+  delay(200);
+  arm.grip();
+  navigation.via_navigate(0.5,-0.52,0,120);
   navigation.head_navigate(180);
   wheels.stop();
   delay(200);
@@ -162,21 +207,23 @@ void plan2(void){
   navigation.head_navigate(270);
   set_origin(270);
 
-  navigation.via_navigate(-0.13,0.0,270,120,true);
-  navigation.via_navigate(-0.45,-0.1,270,120);
-  navigation.via_navigate(-0.5,-0.8,270,120);
-  navigation.via_navigate(0.2,-0.2,270,120,true);
-  navigation.via_navigate(0.25,0.0,270,120,true);
-  navigation.via_navigate(0.15,0.15,270,120,true);
-  navigation.via_navigate(0.15,0.15,270,120,true);
-  navigation.via_navigate(0.0,0.0,270,120,true);
-  navigation.via_navigate(0.0,0.4,270,80,true);
+  navigation.via_navigate(-0.140,0.0,265,120,true);
+  navigation.via_navigate(-0.45,-0.1,265,120);
+  navigation.via_navigate(-0.5,-0.8,265,120);
+  navigation.via_navigate(0.2,-0.2,265,120,true);
+  navigation.via_navigate(0.25,0.0,265,120,true);
+  navigation.via_navigate(0.15,0.15,265,120,true);
+  navigation.via_navigate(0.15,0.15,265,120,true);
+  navigation.via_navigate(0.0,0.0,265,120,true);
+  navigation.via_navigate(0.0,0.4,265,80,true);
   navigation.head_navigate(90);
 
   // Road to drop
   navigation.via_navigate(-0.15,0.0,90,70,true);
 
   set_stand_circle();
+  drop_circle();
+
 
   while(1){
     Serial.printf("Stop\n");
@@ -305,6 +352,82 @@ void check_obs(void){
 }
 
 
+void holonomic_plan(void){
+  navigation.via_navigate(0.47,0.0,0,120);
+  wheels.stop();
+  delay(200);
+
+  arm.drop();
+  delay(200);
+  arm.grip();
+  navigation.via_navigate(0.47,-0.10,0,120);
+  navigation.via_navigate(0.47,-0.40,90,120);
+  navigation.via_navigate(0.47,-0.52,180,120);
+  navigation.head_navigate(180);
+  wheels.stop();
+  delay(200);
+
+  timer_obs = millis();
+  while(1){
+    if((control.control_obs_loop(180,90,100) > 50) && (millis()-timer_obs > 2500)){
+      break;
+    }
+
+  
+  }
+  wheels.stop();
+  delay(200);
+  set_origin(180);
+  navigation.head_navigate(270);
+  delay(200);
+  navigation.via_navigate(-0.025,-0.5,270,100,true);
+  delay(200);
+  while(1){
+    if(control.control_slope_loop(270,90,60)){
+      break;
+    }
+
+  }
+  navigation.via_navigate(0.03,0.0,270,90,true);
+  wheels.stop();
+  delay(100);
+  set_origin_bside(270);
+  set_origin_side();
+  wheels.stop();
+  delay(100);
+  set_origin(270);
+
+
+  navigation.via_navigate(-0.150,0.0,265,120,true);
+  navigation.via_navigate(-0.45,-0.1,260,120);
+  navigation.via_navigate(-0.5,-0.8,260,120);
+  navigation.via_navigate(0.2,-0.2,245,120,true);
+  navigation.via_navigate(0.25,0.0,225,120,true);
+  navigation.via_navigate(0.15,0.15,215,120,true);
+  navigation.via_navigate(0.15,0.15,205,120,true);
+  navigation.via_navigate(0.0,0.0,160,120,true);
+  navigation.via_navigate(0.0,0.4,130,80,true);
+  navigation.head_navigate(100);
+
+  // Road to drop
+  navigation.via_navigate(-0.15,0.0,90,70,true);
+
+  set_stand_circle();
+  drop_circle();
+
+
+  while(1){
+    Serial.printf("Stop\n");
+    wheels.stop();
+  }
+
+
+}
+
+
+
+
+
 void setup() {
   Serial.begin(115200);
   IMU.initial();
@@ -315,11 +438,11 @@ void setup() {
   while(arm.read_tof() > 40){
     Serial.printf("Wait Robojames\n");
   }
-  delay(500);
+  delay(800);
   arm.grip();
-  delay(2500);
+  delay(1500);
   arm.lift_up();
-  delay(200);
+  delay(1000);
   // arm.lift_up();
 
 
@@ -327,8 +450,8 @@ void setup() {
 }
 
 void loop() {
-  Serial.printf("Servo\n");
-  
+  // set_stand_circle();
+
 
   // set_stand();
   // while(1){
@@ -348,7 +471,10 @@ void loop() {
   // }
 
   // control.control_slope_loop(0,0,0);
-  plan2();
+  // plan2();
+  holonomic_plan();
+// set_origin_bside(0);
+// set_origin_side();
 
   // control.control_slope_loop(0,0,0);
   // IMU.call_bno();

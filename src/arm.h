@@ -12,13 +12,13 @@ Servo lift;
 VL53L0X sensor;
 
 
-class Arm{
+class Arm {
     public:
         void initial(void){
             gripper.attach(GRIPPER_PIN);
             lift.attach(LIFT_PIN);
             gripper.write(40);
-            lift.write(173);
+            lift.write(170);
 
             Wire1.begin();
             sensor.setTimeout(500);
@@ -44,10 +44,20 @@ class Arm{
         void lift_up(void){
             lift.write(60);
         }
+        void lift_down(void){
+            lift.write(170);
+        }
 
         void grip(void){
             gripper.write(15);
 
+        }
+        void drop(void){
+            gripper.write(25);
+
+        }
+        void ajar(void){
+            gripper.write(50);
         }
         
 
