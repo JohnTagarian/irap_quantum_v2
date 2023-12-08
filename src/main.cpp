@@ -2,7 +2,15 @@
 #include <base.h>
 #include <arm.h>
 
+#define GREEN_SW 33
+#define RED_SW 35
+#define WHITE_SW 36
+
 unsigned long timer_obs;
+
+unsigned long time_slope_reset;
+
+float yaw_drop;
 
 IMU_t IMU;
 Wheels wheels;
@@ -43,8 +51,9 @@ void plan(void){
   delay(200);
   navigation.via_navigate(0.0,0.5,90,60,true);
   delay(200);
+  time_slope_reset = millis();
   while(1){
-    if(control.control_slope_loop(90,90,60)){
+    if(control.control_slope_loop(90,90,60,time_slope_reset)){
       break;
     }
 
@@ -111,7 +120,7 @@ unsigned long time_ir;
 void set_origin_side(void){
     while(1){
     if(analogRead(BUF_L) < 300 || analogRead(BUF_R) < 200){
-      control.control_heading(270,0,100);
+      control.control_heading(270,0,110);
 
     }
     else{
@@ -124,10 +133,10 @@ void set_origin_side(void){
 int alp_stand = 330;
 unsigned long time_stand;
 
-void set_stand_circle(void){
+void set_stand(void){
   time_stand = millis();
   while(1){
-  control.control_heading(90,alp_stand,50);
+  control.control_heading(90,alp_stand,70);
   if(!digitalRead(BUF_LIM_SB) && !digitalRead(BUF_LIM_SF)){
     alp_stand = 290;
   }
@@ -139,14 +148,18 @@ void set_stand_circle(void){
   }
 
   if(!digitalRead(BUF_LIM_FL) && !digitalRead(BUF_LIM_FR) && !digitalRead(BUF_LIM_SB) && !digitalRead(BUF_LIM_SF)){
-    if(millis() - time_stand > 200){
-      break;
+    while(millis() - time_stand < 100){
+      IMU.call_bno();
+      yaw_drop = IMU.yaw;
+      Serial.printf("stand :%f\n",yaw_drop);
     }
+    break;
     
   }
   else{
     time_stand = millis();
   }
+
   }
 }
 
@@ -161,26 +174,99 @@ void drop_circle(void){
   delay(200);
   navigation.via_navigate(0.0,0.1,85,40,true);
   arm.lift_up();
+}
+
+void drop_square(void){
+  unsigned long time_set;
+  navigation.via_navigate(0.0,0.0,0,0,true);
+  navigation.p2p_navigate(0.105,0.00,yaw_drop);
+  while(1){
+    control.control_heading(yaw_drop,270,40);
+    if(!digitalRead(BUF_LIM_FL) && !digitalRead(BUF_LIM_FR)){
+      if(millis() - time_set > 200){
+        break;
+      }
+      
+    }
+    else{
+      time_set = millis();
+    }
+  }
+  arm.lift_down();
+  wheels.stop();
+  delay(500);
+  
+  arm.drop();
+  wheels.stop();
+  // while(1){
+  //   Serial.printf("Stop\n");
+  //   wheels.stop();
+  // }
+  
+  delay(200);
+  navigation.via_navigate(0.0,0.0,0,0,true);
+  navigation.p2p_navigate(0.0,0.048,yaw_drop);
+  navigation.p2p_navigate(0.0,-0.01,yaw_drop);
+  navigation.p2p_navigate(0.035,0.0,yaw_drop);
+  navigation.p2p_navigate(-0.035,0.0,yaw_drop);
+  navigation.p2p_navigate(0.0,0.0,yaw_drop);
+  wheels.stop();
+  delay(100);
+  arm.ajar();
+  
+  navigation.via_navigate(0.0,0.1,yaw_drop,40,true);
+  arm.lift_up();
+
+}
+
+void drop_hexagon(){
+  navigation.via_navigate(0.0,0.0,0,0,true);
+  navigation.p2p_navigate(0.19,0.00,yaw_drop);
+
+  arm.lift_down();
+  wheels.stop();
+  delay(500);
+
+
+  navigation.via_navigate(0.0,0.045,yaw_drop,40,true);
+
+  navigation.via_navigate(0.0,0.0,0,0,true);
+  navigation.p2p_navigate(-0.04,-0.02,yaw_drop);
+  navigation.p2p_navigate(0.035,-0.02,yaw_drop);
+  navigation.p2p_navigate(0.0,0.035,yaw_drop);
+  navigation.p2p_navigate(-0.04,0.0,yaw_drop);
+
+  wheels.stop();
+  delay(100);
+  arm.ajar();
+  
+  navigation.via_navigate(0.0,0.1,yaw_drop,40,true);
+  arm.lift_up();
+
+
 
 
 }
 
-void plan2(void){
-  navigation.via_navigate(0.51,0.0,0,120);
+void holonomic_plan(char select){
+  // navigation.via_navigate(0.0,0.0,0,0,true);
+  navigation.via_navigate(0.47,0.0,0,160);
   wheels.stop();
-  delay(200);
+  delay(100);
 
   arm.drop();
   delay(200);
   arm.grip();
-  navigation.via_navigate(0.5,-0.52,0,120);
+  navigation.via_navigate(0.47,-0.10,0,130);
+  navigation.via_navigate(0.47,-0.40,90,130);
+  navigation.via_navigate(0.47,-0.52,180,130);
   navigation.head_navigate(180);
   wheels.stop();
   delay(200);
 
   timer_obs = millis();
   while(1){
-    if((control.control_obs_loop(180,90,100) > 50) && (millis()-timer_obs > 2500)){
+    if((control.control_obs_loop(180,90,120) > 50) && (millis()-timer_obs > 2500)){
       break;
     }
 
@@ -189,110 +275,86 @@ void plan2(void){
   wheels.stop();
   delay(200);
   set_origin(180);
-  navigation.head_navigate(270);
+  navigation.head_navigate(180);
   delay(200);
-  navigation.via_navigate(-0.02,-0.5,270,100,true);
-  delay(200);
+  navigation.via_navigate(-0.01,-0.53,180,150,true);
+  navigation.via_navigate(-0.01,-0.73,180,90);
+  delay(80);
+
+  // control.time_slope = millis();
+  wheels.stop();
+  delay(80);
+  time_slope_reset = millis();
   while(1){
-    if(control.control_slope_loop(270,90,60)){
+    if(control.control_side_slope_loop(180,0,90,time_slope_reset)){
       break;
     }
 
   }
-  navigation.via_navigate(0.03,0.0,270,90,true);
 
-  set_origin(270);
-  navigation.head_navigate(0);
-  set_origin(0);
-  navigation.head_navigate(270);
+  //   while(1){
+  //   Serial.printf("Stop\n");
+  //   wheels.stop();
+
+  // }
+  navigation.via_navigate(0.04,0.0,180,90,true);
+  wheels.stop();
+  delay(100);
+  // navigation.head_navigate(270);
+  navigation.via_navigate(0.0,-0.2,240,90,true);
+  set_origin_bside(270);
+  set_origin_side();
+  wheels.stop();
+  delay(100);
   set_origin(270);
 
-  navigation.via_navigate(-0.140,0.0,265,120,true);
-  navigation.via_navigate(-0.45,-0.1,265,120);
-  navigation.via_navigate(-0.5,-0.8,265,120);
-  navigation.via_navigate(0.2,-0.2,265,120,true);
-  navigation.via_navigate(0.25,0.0,265,120,true);
-  navigation.via_navigate(0.15,0.15,265,120,true);
-  navigation.via_navigate(0.15,0.15,265,120,true);
-  navigation.via_navigate(0.0,0.0,265,120,true);
-  navigation.via_navigate(0.0,0.4,265,80,true);
-  navigation.head_navigate(90);
+
+  navigation.via_navigate(-0.162,0.0,265,110,true);
+  navigation.via_navigate(-0.47,-0.1,260,130);
+  navigation.via_navigate(-0.5,-0.8,260,130);
+  navigation.via_navigate(0.2,-0.2,245,130,true);
+  navigation.via_navigate(0.25,0.0,225,130,true);
+  navigation.via_navigate(0.15,0.1,215,130,true);
+  navigation.via_navigate(0.12,0.15,205,130,true);
+  navigation.via_navigate(0.0,0.0,160,130,true);
+  navigation.via_navigate(0.0,0.43,130,130,true);
+  navigation.head_navigate(100);
 
   // Road to drop
-  navigation.via_navigate(-0.15,0.0,90,70,true);
+  navigation.via_navigate(-0.14,0.0,90,70,true);
 
-  set_stand_circle();
-  drop_circle();
-
-
-  while(1){
-    Serial.printf("Stop\n");
-    wheels.stop();
-  }
-}
-
-
-void plan3(){
-  navigation.via_navigate(0.51,0.0,0,100);
+  set_stand();
   wheels.stop();
   delay(200);
-
-  navigation.via_navigate(0.5,-0.52,0,100);
-  navigation.head_navigate(180);
-  wheels.stop();
-  delay(200);
-
-  timer_obs = millis();
-  while(1){
-    if((control.control_obs_loop(180,90,100) > 50) && (millis()-timer_obs > 2500)){
-      break;
-    }
-  }
-
-  wheels.stop();
-  delay(200);
-  set_origin(180);
-  navigation.head_navigate(270);
-  delay(200);
-  navigation.via_navigate(-0.02,-0.5,270,90,true);
-  delay(200);
-  while(1){
-    if(control.control_slope_loop(270,90,60)){
-      break;
-    }
-
-  }
-
-  navigation.via_navigate(0.03,0.0,270,90,true);
+  switch (select)
+  {
+  case '1':
+    drop_circle();
+    break;
   
-  set_origin(270);
-  navigation.head_navigate(0);
-  set_origin(0);
-  navigation.head_navigate(270);
-  set_origin(270);
+  case '2':
+    drop_square();
+    break;
 
-  navigation.via_navigate(-0.2,0.027,270,120,true);
-  navigation.via_navigate(0.0,0.0,270,120,true);
-
-  float xp[] = {0.0, -0.03, -0.05, -0.08, -0.1, -0.12, -0.15, -0.17, -0.2, -0.22, -0.25, -0.2};
-  float yp[] = {-0.0, -0.12, -0.17, -0.2, -0.22, -0.24, -0.26, -0.27, -0.28, -0.29, -0.3, -0.3};
-  for(int i = 0 ; i < 12 ; i++){
-    navigation.via_navigate(yp[i],xp[i],270,100);
+  case '3':
+    drop_hexagon();
+    break;
   }
-  navigation.via_navigate(0.0,-0.55,270,120,true);
+  navigation.via_navigate(0.0,0.0,0,0,true);
+  control.pass_slope = false;
+  
 
-  // float xp[] = {-0.0, -0.13, -0.18, -0.22, -0.24, -0.27, -0.29, -0.3, -0.32, -0.33, -0.34, -0.34, -0.35, -0.35, -0.35, -0.35, -0.35, -0.34, -0.34, -0.33, -0.32, -0.3, -0.29, -0.27, -0.24, -0.22, -0.18, -0.13};
-  // float yp[] = {0.0, 0.03, 0.05, 0.08, 0.1, 0.12, 0.15, 0.17, 0.2, 0.22, 0.25, 0.27, 0.3, 0.33, 0.35, 0.38, 0.4, 0.43, 0.45, 0.48, 0.5, 0.53, 0.55, 0.58, 0.6, 0.63, 0.65, 0.68};
-  // navigation.via_navigate(0.0,0.0,270,120,true);
-  // for(int i = 0 ; i < 28; i++){
-  //   navigation.via_navigate(yp[i],xp[i],270,100);
-  // }
 
-  while(1){
-    Serial.printf("Stop\n");
-    wheels.stop();
-  }
 }
+
+
+
+
+
+// int diff_sensor(void){
+  
+// }
+
 
 
 
@@ -352,89 +414,29 @@ void check_obs(void){
 }
 
 
-void holonomic_plan(void){
-  navigation.via_navigate(0.47,0.0,0,120);
+char reactor = '0';
+
+void run_robot(void){
   wheels.stop();
-  delay(200);
-
-  arm.drop();
-  delay(200);
-  arm.grip();
-  navigation.via_navigate(0.47,-0.10,0,120);
-  navigation.via_navigate(0.47,-0.40,90,120);
-  navigation.via_navigate(0.47,-0.52,180,120);
-  navigation.head_navigate(180);
-  wheels.stop();
-  delay(200);
-
-  timer_obs = millis();
-  while(1){
-    if((control.control_obs_loop(180,90,100) > 50) && (millis()-timer_obs > 2500)){
-      break;
-    }
-
   
-  }
-  wheels.stop();
-  delay(200);
-  set_origin(180);
-  navigation.head_navigate(270);
-  delay(200);
-  navigation.via_navigate(-0.025,-0.5,270,100,true);
-  delay(200);
   while(1){
-    if(control.control_slope_loop(270,90,60)){
+    if(!digitalRead(RED_SW)){
+      reactor = '1';
       break;
     }
-
-  }
-  navigation.via_navigate(0.03,0.0,270,90,true);
-  wheels.stop();
-  delay(100);
-  set_origin_bside(270);
-  set_origin_side();
-  wheels.stop();
-  delay(100);
-  set_origin(270);
-
-
-  navigation.via_navigate(-0.150,0.0,265,120,true);
-  navigation.via_navigate(-0.45,-0.1,260,120);
-  navigation.via_navigate(-0.5,-0.8,260,120);
-  navigation.via_navigate(0.2,-0.2,245,120,true);
-  navigation.via_navigate(0.25,0.0,225,120,true);
-  navigation.via_navigate(0.15,0.15,215,120,true);
-  navigation.via_navigate(0.15,0.15,205,120,true);
-  navigation.via_navigate(0.0,0.0,160,120,true);
-  navigation.via_navigate(0.0,0.4,130,80,true);
-  navigation.head_navigate(100);
-
-  // Road to drop
-  navigation.via_navigate(-0.15,0.0,90,70,true);
-
-  set_stand_circle();
-  drop_circle();
-
-
-  while(1){
-    Serial.printf("Stop\n");
-    wheels.stop();
+    else if(!digitalRead(WHITE_SW)){
+      reactor = '2';
+      break;
+    }
+    else if(!digitalRead(GREEN_SW)){
+      reactor = '3';
+      break;
+    }
   }
 
-
-}
-
-
-
-
-
-void setup() {
-  Serial.begin(115200);
-  IMU.initial();
-  initial_base();
-  arm.initial();
-
-
+  delay(500);
+  gripper.write(40);
+  lift.write(170);
   while(arm.read_tof() > 40){
     Serial.printf("Wait Robojames\n");
   }
@@ -443,13 +445,38 @@ void setup() {
   delay(1500);
   arm.lift_up();
   delay(1000);
-  // arm.lift_up();
+  arm.lift_up();
+  holonomic_plan(reactor);
 
-
-  
 }
 
-void loop() {
+void setup() {
+  Serial.begin(115200);
+  IMU.initial();
+  initial_base();
+  arm.initial();
+  pinMode(GREEN_SW,INPUT);
+  pinMode(RED_SW,INPUT);
+  pinMode(WHITE_SW,INPUT);
+
+
+  // while(arm.read_tof() > 40){
+  //   Serial.printf("Wait Robojames\n");
+  // }
+  // delay(800);
+  // arm.grip();
+  // delay(1500);
+  // arm.lift_up();
+  // delay(1000);
+  // arm.lift_up();
+
+ 
+}
+
+void loop(){
+  run_robot();
+  // control.control_side_slope_loop(270,95,60);
+
   // set_stand_circle();
 
 
@@ -472,7 +499,7 @@ void loop() {
 
   // control.control_slope_loop(0,0,0);
   // plan2();
-  holonomic_plan();
+  // holonomic_plan('2');
 // set_origin_bside(0);
 // set_origin_side();
 

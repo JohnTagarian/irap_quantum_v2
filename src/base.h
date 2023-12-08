@@ -242,13 +242,12 @@ class Control : public Wheels , public IMU_t{
     float prev_pitch , prev_roll;
 
     
-    bool pass_slope = false;
 
     
     
     public:
         int cnt_slope = 0;
-
+        bool pass_slope = false;
         float imu_error , imu_error_sum,imu_error_diff,imu_prev_error,imu_control=0.0f;
         float* distance;
         uint8_t p2p_cnt;
@@ -358,11 +357,88 @@ class Control : public Wheels , public IMU_t{
 
         }
 
-        bool control_slope_loop(int target_angle ,int alp , float vr){
+        bool control_side_slope_loop(int target_angle ,int alp , float vr,unsigned long time_reset){
           call_bno(); 
+          if(millis() - time_reset > 2000){
+            pass_slope = true;
+
+          }
+          if(roll > -4.0 && fabs(pitch) < 3.40){
+            Serial.printf("Normal cnt: %d :: %f pitch %f roll %f\n",cnt_slope,-3.85-pitch,pitch,roll);
+            if(cnt_slope == 2 || cnt_slope == 3 || cnt_slope == 4){
+              cnt_slope = 0;
+              pass_slope = true;
+            }
+
+          }
+          else if(roll > 4.5 && fabs(pitch) < 3.40){
+            Serial.printf("Take off %f pitch %f roll %f\n",-3.85-pitch,pitch,roll);
+            cnt_slope = 1;
+
+          }
+          else if(roll < -4.0 && fabs(pitch) < 3.40){
+            Serial.printf("Landing %f pitch %f roll %f\n",-3.85-pitch,pitch,roll);
+            cnt_slope = 2;
+          }
+          else if(fabs(pitch) > 3.40 && (roll < 2.5) && (roll > -2.0)){
+            Serial.printf("Anomal %f pitch %f roll %f\n",-1.63-roll,pitch,roll); 
+            cnt_slope = 2;
+            // if(-1.63-roll < 0){
+            //   cnt_slope = 3;
+            // }
+            // else if(-1.63-roll > 0){
+            //   cnt_slope = 4;
+            // }
+          }
+
+          imu_current_time = micros();
+          imu_error = target_angle - yaw;
+            
+    
+          if (imu_error < - 180) {
+              imu_error += 360;
+          }
+          if (imu_error > 180) {
+              imu_error -= 360;
+          }
+          imu_error_sum += imu_error;
+          if(fabs(imu_error) < 1.0f) imu_error_sum = 0;
+          imu_error_sum = constrain(imu_error_sum,-60000,60000);
+          imu_error_diff = imu_error - imu_prev_error;
+            // imu_control = kp * imu_error + ki * imu_error_sum * imu_dt_time + kd * imu_error_diff / imu_dt_time;
+          imu_control = kp_imu*imu_error + ki_imu * imu_error_sum  + kd_imu * imu_error_diff;
+
+          imu_control = constrain(imu_control, -500, 500);
+        
+          move(vr,alp,imu_control*-1);
+            
+            // Serial.printf("yaw = %f error= %f \t control= %f  sum_error= %f termI= %f\n",yaw,imu_error,imu_control,imu_error_sum,ki_imu*imu_error_sum);
+
+          imu_prev_error = imu_error;
+
+          imu_dt_time = ((imu_current_time - imu_last_time) / 1.0e6 ) + 0.001f;
+
+          imu_last_time = imu_current_time;
+          // else if(fabs(-3.85-pitch) >5.00 || fabs(-2.25-roll)> 4.80){
+          //   Serial.printf("Anormal \n");
+          //   cnt_slope = 1;
+
+          // }
+          return pass_slope;
+
+        }
+
+        bool control_slope_loop(int target_angle ,int alp , float vr,unsigned long time_reset){
+          call_bno(); 
+
+          if(millis() - time_reset > 2000){
+            pass_slope = true;
+
+          }
           if(fabs(0.06-pitch) <1.10 && fabs(-1.63-roll) < 3.10){
             Serial.printf("Normal cnt: %d :: %f\n",cnt_slope,-3.85-pitch);
             if(cnt_slope == 2 || cnt_slope == 3 || cnt_slope == 4){
+              cnt_slope = 0;
               pass_slope = true;
             }
 
@@ -531,7 +607,7 @@ class Navigation : public Control{
 
     
     while(1){
-      if(p2p(yg,xg,angle) < 0.05){
+      if(p2p(yg,xg,angle) < 0.027){
         if(++p2p_cnt >= 200)break;
       }
     }
