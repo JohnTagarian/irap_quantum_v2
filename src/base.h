@@ -8,6 +8,9 @@
 #include <utility/imumaths.h>
 
 
+
+#define ARM_LIM 21
+
 #define BNO055_SAMPLERATE_DELAY_MS (100)
 
 // Check I2C device address and correct line below (by default address is 0x29 or 0x28)
@@ -600,14 +603,15 @@ class Navigation : public Control{
       }
         
   }
-  void p2p_navigate(float yg , float xg , int angle){
+  void p2p_navigate(float yg , float xg , int angle, bool check = false){
     p2p_cnt = 0;
     p2p_sum_error = 0;
     imu_error_sum =0;
 
     
     while(1){
-      if(p2p(yg,xg,angle) < 0.027){
+      Serial.printf("%d",digitalRead(ARM_LIM));
+      if(p2p(yg,xg,angle) < 0.027 || (check && (digitalRead(ARM_LIM) == 0))){
         if(++p2p_cnt >= 200)break;
       }
     }

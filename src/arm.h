@@ -59,6 +59,9 @@ class Arm {
         void ajar(void){
             gripper.write(50);
         }
+        void set(void){
+            gripper.write(30);
+        }
         
 
 };

@@ -388,4 +388,45 @@ void initial_base(){
     speed_control_timer.begin(speed_control_callback,10000);
 }
 
+unsigned long time_plot;
+void plot(){
+  if(Serial.available()) {
+    input_string = Serial.readString();
+    input_speed = input_string.toInt();
+
+  }
+
+  Target_1 = input_speed;
+  Target_2 = input_speed;
+  Target_3 = input_speed;
+
+  // Drive_Motor1(input_speed);
+
+  if(millis() - time_plot > 10){
+    time_plot = millis();
+    Serial.print("Target :");
+    Serial.print(abs(Target_1));
+    Serial.print("\t");
+    Serial.print("Speed 1:");
+    Serial.print(velocity_1);
+    Serial.print("\t");
+
+    // Serial.print("PID : ");
+    // Serial.print(control_signal_1);
+    // Serial.print("\t");
+
+    // Serial.print("Enc : ");
+    // Serial.print(enc_cnt[0]);
+
+    // Serial.print("Speed 2:");
+    // Serial.print(velocity_2);
+    // Serial.print("\t");
+
+    // Serial.print("Speed 3:");
+    // Serial.print(velocity_3);
+    Serial.println();    
+
+  }
+}
+
 

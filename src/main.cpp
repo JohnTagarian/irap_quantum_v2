@@ -3,11 +3,15 @@
 #include <arm.h>
 
 #define GREEN_SW 33
+#define RETRY_SW 34
 #define RED_SW 35
 #define WHITE_SW 36
 
-unsigned long timer_obs;
+// OUT
+#define LEDB 22
+#define LEDG 23
 
+unsigned long timer_obs;
 unsigned long time_slope_reset;
 
 float yaw_drop;
@@ -17,8 +21,9 @@ Wheels wheels;
 Control control;
 Navigation navigation;
 Arm arm;
-
 IntervalTimer obs_ISR;
+
+char reactor = '0';
 
 // unsigned long time_loop_obs;
 
@@ -136,7 +141,7 @@ unsigned long time_stand;
 void set_stand(void){
   time_stand = millis();
   while(1){
-  control.control_heading(90,alp_stand,70);
+  control.control_heading(90,alp_stand,60);
   if(!digitalRead(BUF_LIM_SB) && !digitalRead(BUF_LIM_SF)){
     alp_stand = 290;
   }
@@ -148,7 +153,7 @@ void set_stand(void){
   }
 
   if(!digitalRead(BUF_LIM_FL) && !digitalRead(BUF_LIM_FR) && !digitalRead(BUF_LIM_SB) && !digitalRead(BUF_LIM_SF)){
-    while(millis() - time_stand < 100){
+    while(millis() - time_stand < 200){
       IMU.call_bno();
       yaw_drop = IMU.yaw;
       Serial.printf("stand :%f\n",yaw_drop);
@@ -205,11 +210,11 @@ void drop_square(void){
   
   delay(200);
   navigation.via_navigate(0.0,0.0,0,0,true);
-  navigation.p2p_navigate(0.0,0.048,yaw_drop);
-  navigation.p2p_navigate(0.0,-0.01,yaw_drop);
-  navigation.p2p_navigate(0.035,0.0,yaw_drop);
-  navigation.p2p_navigate(-0.035,0.0,yaw_drop);
-  navigation.p2p_navigate(0.0,0.0,yaw_drop);
+  navigation.p2p_navigate(0.0,0.058,yaw_drop,true);
+  navigation.p2p_navigate(0.0,-0.01,yaw_drop,true);
+  navigation.p2p_navigate(0.035,0.0,yaw_drop,true);
+  navigation.p2p_navigate(-0.035,0.0,yaw_drop,true);
+  navigation.p2p_navigate(0.0,0.0,yaw_drop,true);
   wheels.stop();
   delay(100);
   arm.ajar();
@@ -217,6 +222,11 @@ void drop_square(void){
   navigation.via_navigate(0.0,0.1,yaw_drop,40,true);
   arm.lift_up();
 
+}
+void move_rot(int theta,float *x ,float *y, float curx,float cury){
+  *x = curx*cos(theta*DEG_TO_RAD) - cury*sin(theta*DEG_TO_RAD);
+  *y = curx*sin(theta*DEG_TO_RAD) + cury*cos(theta*DEG_TO_RAD);
+  
 }
 
 void drop_hexagon(){
@@ -230,11 +240,20 @@ void drop_hexagon(){
 
   navigation.via_navigate(0.0,0.045,yaw_drop,40,true);
 
+  float pos_x = 0.03f;
+  float pos_y = 0.00f;
+  navigation.p2p_navigate(pos_y,pos_x,0);
+  // while(1){
+  //   move_rot(45,&pos_x,&pos_y,pos_x,pos_y);
+  //   navigation.p2p_navigate(pos_y,pos_x,yaw_drop);
+  
+  // }
+
   navigation.via_navigate(0.0,0.0,0,0,true);
-  navigation.p2p_navigate(-0.04,-0.02,yaw_drop);
-  navigation.p2p_navigate(0.035,-0.02,yaw_drop);
-  navigation.p2p_navigate(0.0,0.035,yaw_drop);
-  navigation.p2p_navigate(-0.04,0.0,yaw_drop);
+  navigation.p2p_navigate(-0.04,-0.02,yaw_drop,true);
+  navigation.p2p_navigate(0.035,-0.02,yaw_drop,true);
+  navigation.p2p_navigate(0.0,0.035,yaw_drop,true);
+  navigation.p2p_navigate(-0.052,-0.02,yaw_drop,true);
 
   wheels.stop();
   delay(100);
@@ -243,19 +262,58 @@ void drop_hexagon(){
   navigation.via_navigate(0.0,0.1,yaw_drop,40,true);
   arm.lift_up();
 
-
-
-
 }
+
+float xp[100];
+float yp[100];
+
+float first_y = 0.0;
+float first_x = 0.06;
+
+
+float dropx;
+float dropy;
+
+
+void rot(int theta){
+  xp[0] = first_x;
+  yp[0] = first_y;
+
+  for(int i = 1 ; i < 36; i++){
+    xp[i] = xp[i-1]*cos(theta*DEG_TO_RAD) - yp[i-1]*sin(theta*DEG_TO_RAD);
+    yp[i] = xp[i-1]*sin(theta*DEG_TO_RAD) + yp[i-1]*cos(theta*DEG_TO_RAD);
+    navigation.p2p_navigate(yp[i],xp[i],0);
+    Serial.printf("x = %f y = %f\n",xp[i],yp[i]);
+  }
+  // Serial.printf("x = %f y = %f\n",xp[3],yp[3]);
+}
+void check_obs(void){
+    timer_obs = millis();
+  while(1){
+    if((control.control_obs_loop(0,90,100) > 50) && (millis()-timer_obs > 2500)){
+      break;
+    }
+
+  }
+  while(1){
+    Serial.printf("Stop\n");
+    wheels.stop();
+  }
+}
+
+
+
+
 
 void holonomic_plan(char select){
   // navigation.via_navigate(0.0,0.0,0,0,true);
+  navigation.via_navigate(0.10,0.0,0,140);
   navigation.via_navigate(0.47,0.0,0,160);
   wheels.stop();
   delay(100);
 
-  arm.drop();
-  delay(200);
+  arm.set();
+  delay(150);
   arm.grip();
   navigation.via_navigate(0.47,-0.10,0,130);
   navigation.via_navigate(0.47,-0.40,90,130);
@@ -277,6 +335,8 @@ void holonomic_plan(char select){
   set_origin(180);
   navigation.head_navigate(180);
   delay(200);
+  
+  navigation.via_navigate(-0.01,-0.13,180,100,true);
   navigation.via_navigate(-0.01,-0.53,180,150,true);
   navigation.via_navigate(-0.01,-0.73,180,90);
   delay(80);
@@ -306,8 +366,81 @@ void holonomic_plan(char select){
   set_origin_side();
   wheels.stop();
   delay(100);
+
   set_origin(270);
 
+  navigation.via_navigate(-0.162,0.0,265,110,true);
+  navigation.via_navigate(-0.47,-0.1,260,130);
+  navigation.via_navigate(-0.5,-0.8,260,120);
+  navigation.via_navigate(0.2,-0.2,245,140,true);
+  navigation.via_navigate(0.25,0.0,225,170,true);
+  navigation.via_navigate(0.15,0.1,215,170,true);
+  navigation.via_navigate(0.12,0.15,205,170,true);
+  navigation.via_navigate(0.0,0.0,160,170,true);
+  navigation.via_navigate(0.0,0.43,130,150,true);
+  navigation.head_navigate(100);
+
+  // Road to drop
+  navigation.via_navigate(-0.14,0.0,90,70,true);
+
+  set_stand();
+  wheels.stop();
+  delay(200);
+  switch (reactor)
+  {
+  case '1':
+    drop_circle();
+    break;
+  
+  case '2':
+    drop_square();
+    break;
+
+  case '3':
+    drop_hexagon();
+    break;
+  }
+  navigation.via_navigate(0.0,0.0,0,0,true);
+  control.pass_slope = false;
+  
+}
+
+
+void retry_run(){
+  wheels.stop();
+  while(1){
+    if(!digitalRead(RED_SW)){
+      reactor = '1';
+      break;
+    }
+    else if(!digitalRead(WHITE_SW)){
+      reactor = '2';
+      break;
+    }
+    else if(!digitalRead(GREEN_SW)){
+      reactor = '3';
+      break;
+    }
+  }
+  digitalWrite(LEDG,HIGH);
+
+
+  delay(500);
+  gripper.write(40);
+  lift.write(170);
+  arm.lift_up();
+  while(arm.read_tof() > 40){
+    Serial.printf("Wait Robojames\n");
+  }
+  digitalWrite(LEDB,HIGH);
+  delay(200);
+  arm.grip();
+  wheels.stop();
+  delay(500);
+
+  navigation.head_navigate(270);
+  navigation.via_navigate(0.0,0.0,270,110);
+  set_origin(270);
 
   navigation.via_navigate(-0.162,0.0,265,110,true);
   navigation.via_navigate(-0.47,-0.1,260,130);
@@ -326,7 +459,7 @@ void holonomic_plan(char select){
   set_stand();
   wheels.stop();
   delay(200);
-  switch (select)
+  switch (reactor)
   {
   case '1':
     drop_circle();
@@ -342,79 +475,8 @@ void holonomic_plan(char select){
   }
   navigation.via_navigate(0.0,0.0,0,0,true);
   control.pass_slope = false;
-  
-
-
 }
 
-
-
-
-
-// int diff_sensor(void){
-  
-// }
-
-
-
-
-unsigned long time_plot;
-void plot(){
-  if(Serial.available()) {
-    input_string = Serial.readString();
-    input_speed = input_string.toInt();
-
-  }
-
-  Target_1 = input_speed;
-  Target_2 = input_speed;
-  Target_3 = input_speed;
-
-  // Drive_Motor1(input_speed);
-
-  if(millis() - time_plot > 10){
-    time_plot = millis();
-    Serial.print("Target :");
-    Serial.print(abs(Target_1));
-    Serial.print("\t");
-    Serial.print("Speed 1:");
-    Serial.print(velocity_1);
-    Serial.print("\t");
-
-    // Serial.print("PID : ");
-    // Serial.print(control_signal_1);
-    // Serial.print("\t");
-
-    // Serial.print("Enc : ");
-    // Serial.print(enc_cnt[0]);
-
-    // Serial.print("Speed 2:");
-    // Serial.print(velocity_2);
-    // Serial.print("\t");
-
-    // Serial.print("Speed 3:");
-    // Serial.print(velocity_3);
-    Serial.println();    
-
-  }
-}
-
-void check_obs(void){
-    timer_obs = millis();
-  while(1){
-    if((control.control_obs_loop(0,90,100) > 50) && (millis()-timer_obs > 2500)){
-      break;
-    }
-
-  }
-  while(1){
-    Serial.printf("Stop\n");
-    wheels.stop();
-  }
-}
-
-
-char reactor = '0';
 
 void run_robot(void){
   wheels.stop();
@@ -433,6 +495,7 @@ void run_robot(void){
       break;
     }
   }
+  digitalWrite(LEDB,HIGH);
 
   delay(500);
   gripper.write(40);
@@ -440,6 +503,7 @@ void run_robot(void){
   while(arm.read_tof() > 40){
     Serial.printf("Wait Robojames\n");
   }
+  digitalWrite(LEDG,HIGH);
   delay(800);
   arm.grip();
   delay(1500);
@@ -450,6 +514,8 @@ void run_robot(void){
 
 }
 
+boolean retry = false;
+
 void setup() {
   Serial.begin(115200);
   IMU.initial();
@@ -458,6 +524,18 @@ void setup() {
   pinMode(GREEN_SW,INPUT);
   pinMode(RED_SW,INPUT);
   pinMode(WHITE_SW,INPUT);
+  pinMode(RETRY_SW,INPUT);
+  pinMode(LEDB,OUTPUT);
+  pinMode(LEDG,OUTPUT);
+
+  pinMode(ARM_LIM,INPUT);
+
+  digitalWrite(LEDB,LOW);
+  digitalWrite(LEDG,LOW);
+  
+  if(!digitalRead(RETRY_SW)){
+    retry = true;
+  }
 
 
   // while(arm.read_tof() > 40){
@@ -469,108 +547,20 @@ void setup() {
   // arm.lift_up();
   // delay(1000);
   // arm.lift_up();
-
- 
 }
 
 void loop(){
-  run_robot();
-  // control.control_side_slope_loop(270,95,60);
-
-  // set_stand_circle();
-
-
-  // set_stand();
+  // navigation.p2p_navigate(1.0,0.0,0,true);
   // while(1){
   //   Serial.printf("Stop\n");
   //   wheels.stop();
   // }
-  // Serial.printf("%d %d %d %d\n",digitalRead(BUF_LIM_SB),digitalRead(BUF_LIM_SF),digitalRead(BUF_LIM_FL),digitalRead(BUF_LIM_FR));
-  // navigation.via_navigate(1.0,0.0,0,60);
-  // for(int i = 0 ; i < 28; i++){
-  //   navigation.via_navigate(yp[i],xp[i],0,100);
-
-  // }
-
-  // while(1){
-  //   Serial.printf("Stop\n");
-  //   wheels.stop();
-  // }
-
-  // control.control_slope_loop(0,0,0);
-  // plan2();
-  // holonomic_plan('2');
-// set_origin_bside(0);
-// set_origin_side();
-
-  // control.control_slope_loop(0,0,0);
-  // IMU.call_bno();
-  // navigation.head_navigate(90);
-  // while(1){
-  //   Serial.printf("Stop\n");
-  //   wheels.stop();
-
-  // }
-  // Serial.printf("BUF_L : %d BUF_R :%d\n",analogRead(BUF_L),analogRead(BUF_R));
-  // control.control_obs_loop(0,0,0);
-  // plan();
-  // control.get_distance_vector();
-  // delay(500);
-  //   while(1){
-  //   Serial.printf("Stop\n");
-  //   wheels.stop();
-
-  // }
-
-  // wheels.cmd_motor(20,20,20);
-  // wheels.move(100,90,0);
-
-  // Drive_Motor1(-500);
-  // Drive_Motor2(-500);
-  // Drive_Motor3(-500);
-  
-  // Serial.printf("A: %d B: %d\n",digitalRead(28),digitalRead(29));
-
-  // control.reset_time_slope();
-  // control.control_slope_loop(0,90,60);
-
-
-  // while(1){
-  //   Serial.printf("Stop");
-  //   wheels.stop();
-  // }
-
-  // plan();
-  // navigation.head_navigate(90);
-  // navigation.via_navigate(0.0,1.0,90,70);
-  // navigation.via_navigate(0.0,1.0,90,60);
-  // while(1){
-  //   Serial.printf("Stop :");
-  //   wheels.stop();
-
-  // }
-  // while(1){
-  //   Serial.printf("Stop \n");
-  // }
-  // plan();
-  
-  // wheels.move();
-  // while(1){
-    // control.control_heading(0,90,100,true);
-
-  // }
-
-
-
-  // 3062
-
-
-
-
-  // -3.31 - > p
-  // - 1.625 -> 
-  // wheels.move(100,120,0);
-  // Serial.printf("ENC1: %d , ENC2: %d , ENC3: %d\n",enc_cnt[0],enc_cnt[1],enc_cnt[2]);
+  if(retry){
+    retry_run();
+  }
+  else{
+    run_robot();
+  }
 
 
 }
