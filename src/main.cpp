@@ -102,7 +102,7 @@ void set_origin(int target_angle){
 
     }
     else{
-      control.control_heading(target_angle,90,100);
+      control.control_heading(target_angle,90,140);
     }
 
   }
@@ -115,7 +115,7 @@ void set_origin_bside(int target_angle){
 
     }
     else{
-      control.control_heading(target_angle,90,100);
+      control.control_heading(target_angle,90,130);
     }
 
   }
@@ -207,6 +207,9 @@ void drop_square(void){
   //   Serial.printf("Stop\n");
   //   wheels.stop();
   // }
+
+  // navigation.p2p_navigate(0.0,0.058,yaw_drop,true);
+  // find_hole();
   
   delay(200);
   navigation.via_navigate(0.0,0.0,0,0,true);
@@ -215,6 +218,8 @@ void drop_square(void){
   navigation.p2p_navigate(0.035,0.0,yaw_drop,true);
   navigation.p2p_navigate(-0.035,0.0,yaw_drop,true);
   navigation.p2p_navigate(0.0,0.0,yaw_drop,true);
+
+  
   wheels.stop();
   delay(100);
   arm.ajar();
@@ -305,19 +310,22 @@ void check_obs(void){
 
 
 
+
+
 void holonomic_plan(char select){
   // navigation.via_navigate(0.0,0.0,0,0,true);
+  navigation.head_navigate(0);
   navigation.via_navigate(0.10,0.0,0,140);
-  navigation.via_navigate(0.47,0.0,0,160);
+  navigation.via_navigate(0.47,0.0,0,180);
   wheels.stop();
   delay(100);
 
   arm.set();
   delay(150);
   arm.grip();
-  navigation.via_navigate(0.47,-0.10,0,130);
-  navigation.via_navigate(0.47,-0.40,90,130);
-  navigation.via_navigate(0.47,-0.52,180,130);
+  navigation.via_navigate(0.47,-0.10,0,140);
+  navigation.via_navigate(0.47,-0.40,90,140);
+  navigation.via_navigate(0.47,-0.52,180,140);
   navigation.head_navigate(180);
   wheels.stop();
   delay(200);
@@ -336,9 +344,9 @@ void holonomic_plan(char select){
   navigation.head_navigate(180);
   delay(200);
   
-  navigation.via_navigate(-0.01,-0.13,180,100,true);
-  navigation.via_navigate(-0.01,-0.53,180,150,true);
-  navigation.via_navigate(-0.01,-0.73,180,90);
+  navigation.via_navigate(-0.01,-0.13,180,120,true);
+  navigation.via_navigate(-0.01,-0.53,180,170,true);
+  navigation.via_navigate(-0.01,-0.73,180,110);
   delay(80);
 
   // control.time_slope = millis();
@@ -346,7 +354,7 @@ void holonomic_plan(char select){
   delay(80);
   time_slope_reset = millis();
   while(1){
-    if(control.control_side_slope_loop(180,0,90,time_slope_reset)){
+    if(control.control_side_slope_loop(180,0,100,time_slope_reset)){
       break;
     }
 
@@ -372,11 +380,11 @@ void holonomic_plan(char select){
   navigation.via_navigate(-0.162,0.0,265,110,true);
   navigation.via_navigate(-0.47,-0.1,260,130);
   navigation.via_navigate(-0.5,-0.8,260,120);
-  navigation.via_navigate(0.2,-0.2,245,140,true);
-  navigation.via_navigate(0.25,0.0,225,170,true);
-  navigation.via_navigate(0.15,0.1,215,170,true);
-  navigation.via_navigate(0.12,0.15,205,170,true);
-  navigation.via_navigate(0.0,0.0,160,170,true);
+  navigation.via_navigate(0.2,-0.2,245,160,true);
+  navigation.via_navigate(0.25,0.0,225,200,true);
+  navigation.via_navigate(0.15,0.1,215,200,true);
+  navigation.via_navigate(0.12,0.15,205,200,true);
+  navigation.via_navigate(0.0,0.0,160,200,true);
   navigation.via_navigate(0.0,0.43,130,150,true);
   navigation.head_navigate(100);
 
@@ -440,6 +448,8 @@ void retry_run(){
 
   navigation.head_navigate(270);
   navigation.via_navigate(0.0,0.0,270,110);
+  wheels.stop();
+  delay(10000);
   set_origin(270);
 
   navigation.via_navigate(-0.162,0.0,265,110,true);
@@ -480,7 +490,7 @@ void retry_run(){
 
 void run_robot(void){
   wheels.stop();
-  
+  arm.lift_up();
   while(1){
     if(!digitalRead(RED_SW)){
       reactor = '1';
@@ -496,10 +506,14 @@ void run_robot(void){
     }
   }
   digitalWrite(LEDB,HIGH);
+  delay(500);
+  navigation.head_navigate(45);
 
   delay(500);
   gripper.write(40);
   lift.write(170);
+
+  wheels.stop();
   while(arm.read_tof() > 40){
     Serial.printf("Wait Robojames\n");
   }
@@ -511,6 +525,53 @@ void run_robot(void){
   delay(1000);
   arm.lift_up();
   holonomic_plan(reactor);
+
+}
+
+void find_hole(){
+
+
+  static float xpath = -0.04;
+  static float ypath = 0.00;
+  
+
+  for(int i=0; i < 3 ; i++){
+    // origin
+    navigation.via_navigate(0.0,0.0,90,0,true);
+
+    // D
+    move_rot(180,&xpath,&ypath,xpath,ypath);
+    navigation.p2p_navigate(ypath,xpath,90,true);
+
+    // U
+    move_rot(180,&xpath,&ypath,xpath,ypath);
+    navigation.p2p_navigate(ypath,xpath,90,true);
+
+    // origin
+    navigation.p2p_navigate(0,0,90,true);
+    
+    // <
+    move_rot(90,&xpath,&ypath,xpath,ypath);
+    navigation.p2p_navigate(ypath,xpath,90,true);
+
+    // >
+    move_rot(180,&xpath,&ypath,xpath,ypath);
+    navigation.p2p_navigate(ypath,xpath,90,true);
+
+    // wheels.stop();
+    // delay(100);
+    // arm.ajar();
+    
+    // navigation.via_navigate(0.0,0.1,yaw_drop,40,true);
+    // arm.lift_up();
+
+
+  }
+
+  
+  
+  
+
 
 }
 
@@ -561,6 +622,7 @@ void loop(){
   else{
     run_robot();
   }
+  // arm.lift_up();
 
 
 }

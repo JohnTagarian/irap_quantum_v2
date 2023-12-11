@@ -48,6 +48,10 @@ class Arm {
             lift.write(170);
         }
 
+        void lift_press(void){
+            lift.write(175);
+        }
+
         void grip(void){
             gripper.write(15);
 
