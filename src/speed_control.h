@@ -17,8 +17,8 @@ IntervalTimer speed_control_timer;
 #define BUF_L 32
 #define BUF_R 31
 
-#define BUF_LIM_FL 15
-#define BUF_LIM_FR 16
+#define BUF_LIM_FL 16
+#define BUF_LIM_FR 15
 #define BUF_LIM_SB 14
 #define BUF_LIM_SF 17
 

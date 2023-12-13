@@ -316,7 +316,8 @@ void holonomic_plan(char select){
   // navigation.via_navigate(0.0,0.0,0,0,true);
   navigation.head_navigate(0);
   navigation.via_navigate(0.10,0.0,0,140);
-  navigation.via_navigate(0.47,0.0,0,180);
+  navigation.via_navigate(0.37,0.0,0,220);
+  navigation.via_navigate(0.47,0.0,0,170);
   wheels.stop();
   delay(100);
 
@@ -344,9 +345,9 @@ void holonomic_plan(char select){
   navigation.head_navigate(180);
   delay(200);
   
-  navigation.via_navigate(-0.01,-0.13,180,120,true);
-  navigation.via_navigate(-0.01,-0.53,180,170,true);
-  navigation.via_navigate(-0.01,-0.73,180,110);
+  navigation.via_navigate(-0.01,-0.13,180,125,true);
+  navigation.via_navigate(-0.01,-0.53,180,190,true);
+  navigation.via_navigate(-0.01,-0.73,180,120);
   delay(80);
 
   // control.time_slope = millis();
@@ -377,15 +378,15 @@ void holonomic_plan(char select){
 
   set_origin(270);
 
-  navigation.via_navigate(-0.162,0.0,265,110,true);
-  navigation.via_navigate(-0.47,-0.1,260,130);
-  navigation.via_navigate(-0.5,-0.8,260,120);
+  navigation.via_navigate(-0.162,0.0,265,120,true);
+  navigation.via_navigate(-0.47,-0.1,260,140);
+  navigation.via_navigate(-0.5,-0.8,260,130);
   navigation.via_navigate(0.2,-0.2,245,160,true);
-  navigation.via_navigate(0.25,0.0,225,200,true);
-  navigation.via_navigate(0.15,0.1,215,200,true);
-  navigation.via_navigate(0.12,0.15,205,200,true);
-  navigation.via_navigate(0.0,0.0,160,200,true);
-  navigation.via_navigate(0.0,0.43,130,150,true);
+  navigation.via_navigate(0.25,0.0,225,220,true);
+  navigation.via_navigate(0.15,0.1,215,220,true);
+  navigation.via_navigate(0.12,0.15,205,220,true);
+  navigation.via_navigate(0.0,0.0,160,220,true);
+  navigation.via_navigate(0.0,0.44,130,160,true);
   navigation.head_navigate(100);
 
   // Road to drop
@@ -416,6 +417,15 @@ void holonomic_plan(char select){
 
 void retry_run(){
   wheels.stop();
+  while(arm.read_tof() > 40){
+    Serial.printf("Wait Robojames\n");
+  }
+  digitalWrite(LEDB,HIGH);
+  delay(200);
+  arm.grip();
+  wheels.stop();
+  delay(500);
+
   while(1){
     if(!digitalRead(RED_SW)){
       reactor = '1';
@@ -434,22 +444,15 @@ void retry_run(){
 
 
   delay(500);
-  gripper.write(40);
-  lift.write(170);
   arm.lift_up();
-  while(arm.read_tof() > 40){
-    Serial.printf("Wait Robojames\n");
-  }
-  digitalWrite(LEDB,HIGH);
-  delay(200);
-  arm.grip();
-  wheels.stop();
-  delay(500);
+
 
   navigation.head_navigate(270);
+  arm.set();
+  delay(150);
+  arm.grip();
   navigation.via_navigate(0.0,0.0,270,110);
   wheels.stop();
-  delay(10000);
   set_origin(270);
 
   navigation.via_navigate(-0.162,0.0,265,110,true);
@@ -570,8 +573,6 @@ void find_hole(){
 
   
   
-  
-
 
 }
 
@@ -611,6 +612,9 @@ void setup() {
 }
 
 void loop(){
+  
+  // Serial.printf("%d %d\n",analogRead(BUF_L),analogRead(BUF_R)); // Monitor
+
   // navigation.p2p_navigate(1.0,0.0,0,true);
   // while(1){
   //   Serial.printf("Stop\n");
@@ -622,7 +626,5 @@ void loop(){
   else{
     run_robot();
   }
-  // arm.lift_up();
-
 
 }
