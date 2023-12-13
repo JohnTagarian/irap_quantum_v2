@@ -87,7 +87,7 @@ void step_back(int target_angle){
     control.control_heading(target_angle,270,60);
     if(analogRead(BUF_L) > 300 && analogRead(BUF_R) > 200){
       control.control_heading(target_angle,270,60);
-      delay(100);
+      delay(50);
       break;
 
     }
@@ -98,6 +98,7 @@ void set_origin(int target_angle){
   while(1){
     if(analogRead(BUF_L) < 300 && analogRead(BUF_R) < 200){
       step_back(target_angle);
+      delay(50);
       break;
 
     }
@@ -415,6 +416,8 @@ void holonomic_plan(char select){
 }
 
 
+
+
 void retry_run(){
   wheels.stop();
   while(arm.read_tof() > 40){
@@ -531,9 +534,36 @@ void run_robot(void){
 
 }
 
+
+
+void retry_run_start(void){
+  wheels.stop();
+  arm.lift_up();
+  arm.grip();
+  while(1){
+    if(!digitalRead(RED_SW)){
+      reactor = '1';
+      break;
+    }
+    else if(!digitalRead(WHITE_SW)){
+      reactor = '2';
+      break;
+    }
+    else if(!digitalRead(GREEN_SW)){
+      reactor = '3';
+      break;
+    }
+  }
+  digitalWrite(LEDB,HIGH);
+
+  delay(500);
+  wheels.stop();
+  delay(1000);
+  holonomic_plan(reactor);
+
+}
+
 void find_hole(){
-
-
   static float xpath = -0.04;
   static float ypath = 0.00;
   
@@ -571,8 +601,6 @@ void find_hole(){
 
   }
 
-  
-  
 
 }
 
@@ -621,7 +649,7 @@ void loop(){
   //   wheels.stop();
   // }
   if(retry){
-    retry_run();
+    retry_run_start();
   }
   else{
     run_robot();
